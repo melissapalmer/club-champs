@@ -2,17 +2,23 @@ import { useMemo, useState } from 'react';
 import { DivisionTabs } from '../components/DivisionTabs';
 import type { AppData } from '../data';
 import { fullName, num } from '../format';
-import { buildPlayerLines, linesByDivision, rankWithTies } from '../scoring/engine';
+import {
+  buildPlayerLines,
+  linesByDivision,
+  rankWithTies,
+  visibleDivisions,
+} from '../scoring/engine';
 
 export function Leaderboard({ data }: { data: AppData }) {
   const { course, players, scores } = data;
+  const divs = useMemo(() => visibleDivisions(course), [course]);
   const lines = useMemo(
     () => buildPlayerLines(players, scores, course),
     [players, scores, course]
   );
   const byDiv = useMemo(() => linesByDivision(lines), [lines]);
 
-  const [activeDiv, setActiveDiv] = useState<string>(course.divisions[1]?.code ?? 'B');
+  const [activeDiv, setActiveDiv] = useState<string>(divs[0]?.code ?? '');
   const divLines = byDiv.get(activeDiv) ?? [];
 
   const overallNetRanks = rankWithTies(divLines.map((l) => l.overall.net));
@@ -28,11 +34,11 @@ export function Leaderboard({ data }: { data: AppData }) {
 
   return (
     <section>
-      <h1 className="text-2xl text-rd-navy mb-1">Leaderboard</h1>
+      <h1 className="text-2xl text-rd-navy mb-1">Running Scores</h1>
       <p className="text-sm text-rd-ink/60 mb-4">
         Medal scoring across two days · ranked by overall net.
       </p>
-      <DivisionTabs divisions={course.divisions} active={activeDiv} onChange={setActiveDiv} />
+      <DivisionTabs divisions={divs} active={activeDiv} onChange={setActiveDiv} />
 
       <div className="rd-card overflow-x-auto">
         <table className="rd-table">

@@ -15,11 +15,26 @@ export function playingHandicap(hc: number, handicapPct: number): number {
   return Math.round((hc * handicapPct) / 100);
 }
 
+export function visibleDivisions(course: Course): DivisionConfig[] {
+  return course.divisions.filter((d) => !d.hidden);
+}
+
 export function divisionFor(player: Player, course: Course): DivisionConfig | undefined {
+  // Honour an explicit override only if the target division is visible.
   if (player.divisionOverride) {
-    return course.divisions.find((d) => d.code === player.divisionOverride);
+    const overridden = course.divisions.find((d) => d.code === player.divisionOverride);
+    if (overridden && !overridden.hidden) return overridden;
   }
-  return course.divisions.find((d) => player.hi >= d.hiMin && player.hi <= d.hiMax);
+  // Walk visible divisions in HI order; the lowest visible div absorbs anyone
+  // below its hiMin (e.g. when Gold is hidden, a HI-1 player rolls into Silver).
+  const visible = visibleDivisions(course).slice().sort((a, b) => a.hiMin - b.hiMin);
+  for (let i = 0; i < visible.length; i++) {
+    const d = visible[i];
+    const isLowest = i === 0;
+    if (isLowest && player.hi <= d.hiMax) return d;
+    if (!isLowest && player.hi >= d.hiMin && player.hi <= d.hiMax) return d;
+  }
+  return visible[visible.length - 1];
 }
 
 export function dayTotals(holes: (number | null)[]): {

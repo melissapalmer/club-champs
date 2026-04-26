@@ -7,6 +7,7 @@ export type DivisionConfig = {
   hiMin: number;
   hiMax: number;
   handicapPct: number;
+  hidden?: boolean;
 };
 
 export type Course = {

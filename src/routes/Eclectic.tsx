@@ -2,19 +2,25 @@ import { useMemo, useState } from 'react';
 import { DivisionTabs } from '../components/DivisionTabs';
 import type { AppData } from '../data';
 import { fullName, num } from '../format';
-import { buildPlayerLines, linesByDivision, rankWithTies } from '../scoring/engine';
+import {
+  buildPlayerLines,
+  linesByDivision,
+  rankWithTies,
+  visibleDivisions,
+} from '../scoring/engine';
 
 const HOLE_HEADERS = Array.from({ length: 18 }, (_, i) => i + 1);
 
 export function Eclectic({ data }: { data: AppData }) {
   const { course, players, scores } = data;
+  const divs = useMemo(() => visibleDivisions(course), [course]);
   const lines = useMemo(
     () => buildPlayerLines(players, scores, course),
     [players, scores, course]
   );
   const byDiv = useMemo(() => linesByDivision(lines), [lines]);
 
-  const [activeDiv, setActiveDiv] = useState<string>(course.divisions[1]?.code ?? 'B');
+  const [activeDiv, setActiveDiv] = useState<string>(divs[0]?.code ?? '');
   const divLines = byDiv.get(activeDiv) ?? [];
 
   const netRanks = rankWithTies(divLines.map((l) => l.eclectic.net));
@@ -33,7 +39,7 @@ export function Eclectic({ data }: { data: AppData }) {
       <p className="text-sm text-rd-ink/60 mb-4">
         Best of Day 1 / Day 2 per hole · net = gross less {course.eclecticHandicapPct}% of PH.
       </p>
-      <DivisionTabs divisions={course.divisions} active={activeDiv} onChange={setActiveDiv} />
+      <DivisionTabs divisions={divs} active={activeDiv} onChange={setActiveDiv} />
 
       <div className="rd-card overflow-x-auto">
         <table className="rd-table">

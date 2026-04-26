@@ -34,7 +34,7 @@ export function App() {
           element={data ? <Results data={data} /> : <Loading />}
         />
         <Route
-          path="/players"
+          path="/entrants"
           element={data ? <Players data={data} /> : <Loading />}
         />
         <Route path="/enter" element={data ? <Enter data={data} /> : <Loading />} />

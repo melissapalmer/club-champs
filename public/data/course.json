@@ -17,7 +17,8 @@
       "tee": "red",
       "hiMin": -999,
       "hiMax": 6.5,
-      "handicapPct": 100
+      "handicapPct": 100,
+      "hidden": true
     },
     {
       "code": "B",

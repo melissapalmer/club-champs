@@ -75,6 +75,34 @@ describe('divisionFor', () => {
     };
     expect(divisionFor(tara, course)?.code).toBe('B');
   });
+
+  it('rolls a low-HI player into the lowest visible division when Gold is hidden', () => {
+    const courseHidden: Course = {
+      ...course,
+      divisions: course.divisions.map((d) =>
+        d.code === 'A' ? { ...d, hidden: true } : d
+      ),
+    };
+    const lowHi: Player = { firstName: 'LOW', lastName: 'HI', saId: 'x', hi: 1 };
+    expect(divisionFor(lowHi, courseHidden)?.code).toBe('B');
+  });
+
+  it('ignores an override pointing to a hidden division', () => {
+    const courseHidden: Course = {
+      ...course,
+      divisions: course.divisions.map((d) =>
+        d.code === 'A' ? { ...d, hidden: true } : d
+      ),
+    };
+    const player: Player = {
+      firstName: 'X',
+      lastName: 'Y',
+      saId: 'x',
+      hi: 12,
+      divisionOverride: 'A',
+    };
+    expect(divisionFor(player, courseHidden)?.code).toBe('B');
+  });
 });
 
 describe('dayTotals', () => {

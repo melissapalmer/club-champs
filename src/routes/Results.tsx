@@ -5,6 +5,7 @@ import {
   buildPlayerLines,
   linesByDivision,
   rankWithTies,
+  visibleDivisions,
   type PlayerLine,
 } from '../scoring/engine';
 import type { DivisionConfig } from '../types';
@@ -99,7 +100,7 @@ export function Results({ data }: { data: AppData }) {
         Top {TOP_N} per division across each prize category.
       </p>
       <div className="space-y-4">
-        {course.divisions.map((d) => (
+        {visibleDivisions(course).map((d) => (
           <DivisionResults key={d.code} division={d} lines={byDiv.get(d.code) ?? []} />
         ))}
       </div>

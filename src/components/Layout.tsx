@@ -4,10 +4,10 @@ import type { Course } from '../types';
 // Score Entry is intentionally not in the public nav — reach it via the
 // bookmarked URL with the access key (see /enter route).
 const NAV = [
-  { to: '/', label: 'Leaderboard', end: true },
+  { to: '/entrants', label: 'Entrants', end: false },
+  { to: '/', label: 'Running Scores', end: true },
   { to: '/eclectic', label: 'Eclectic', end: false },
   { to: '/results', label: 'Results', end: false },
-  { to: '/players', label: 'Players', end: false },
 ];
 
 export function Layout({ course }: { course: Course | null }) {
