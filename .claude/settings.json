@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm test *)",
+      "Bash(pkill -f \"vite\")",
+      "Bash(npx vitest *)"
+    ],
+    "additionalDirectories": [
+      "/tmp"
+    ]
+  }
+}

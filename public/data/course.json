@@ -1,0 +1,39 @@
+{
+  "club": "Royal Durban Golf Club",
+  "event": "2026 Ladies Club Champs",
+  "gender": "women",
+  "maxHandicap": 36,
+  "eclecticHandicapPct": 25,
+  "tees": {
+    "yellow": { "par": 72, "cr": 72.7, "slope": 124 },
+    "white":  { "par": 72, "cr": 77.7, "slope": 137 },
+    "blue":   { "par": 72, "cr": 75.0, "slope": 130 },
+    "red":    { "par": 72, "cr": 72.7, "slope": 123 }
+  },
+  "divisions": [
+    {
+      "code": "A",
+      "name": "Gold",
+      "tee": "red",
+      "hiMin": -999,
+      "hiMax": 6.5,
+      "handicapPct": 100
+    },
+    {
+      "code": "B",
+      "name": "Silver",
+      "tee": "red",
+      "hiMin": 6.6,
+      "hiMax": 15.3,
+      "handicapPct": 100
+    },
+    {
+      "code": "C",
+      "name": "Bronze",
+      "tee": "red",
+      "hiMin": 15.4,
+      "hiMax": 10001,
+      "handicapPct": 100
+    }
+  ]
+}

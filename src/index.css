@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply font-sans antialiased;
+  }
+  h1, h2, h3 {
+    @apply font-serif tracking-tight;
+  }
+}
+
+@layer components {
+  .rd-card {
+    @apply bg-white rounded-lg shadow-sm border border-rd-cream;
+  }
+  .rd-table {
+    @apply w-full text-sm;
+  }
+  .rd-table thead th {
+    @apply bg-rd-navy/5 text-rd-navy font-semibold text-left px-3 py-2 border-b border-rd-navy/10 whitespace-nowrap;
+  }
+  .rd-table tbody td {
+    @apply px-3 py-2 border-b border-rd-cream;
+  }
+  .rd-table tbody tr:hover {
+    @apply bg-rd-cream/40;
+  }
+  .rd-tab {
+    @apply px-4 py-2 text-sm font-medium border-b-2 border-transparent text-rd-ink/70 hover:text-rd-navy;
+  }
+  .rd-tab-active {
+    @apply border-rd-gold text-rd-navy;
+  }
+}
