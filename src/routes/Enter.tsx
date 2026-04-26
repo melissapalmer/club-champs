@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import type { AppData } from '../data';
 import { fullName } from '../format';
 import {
@@ -124,7 +125,40 @@ function SettingsDialog({
   );
 }
 
+// Cosmetic gate — the repo is public, so the bundle reveals this string. Real
+// write protection comes from the GitHub PAT, which lives only in localStorage.
+const ACCESS_KEY = 'durban2026';
+const KEY_STORAGE = 'rd-cc-access';
+
 export function Enter({ data }: { data: AppData }) {
+  const [params] = useSearchParams();
+  const [authorised, setAuthorised] = useState<boolean>(() => {
+    const fromUrl = params.get('key');
+    if (fromUrl === ACCESS_KEY) {
+      sessionStorage.setItem(KEY_STORAGE, ACCESS_KEY);
+      return true;
+    }
+    return sessionStorage.getItem(KEY_STORAGE) === ACCESS_KEY;
+  });
+
+  useEffect(() => {
+    if (params.get('key') === ACCESS_KEY) {
+      sessionStorage.setItem(KEY_STORAGE, ACCESS_KEY);
+      setAuthorised(true);
+    }
+  }, [params]);
+
+  if (!authorised) {
+    return (
+      <section>
+        <h1 className="text-2xl text-rd-navy mb-2">Not available</h1>
+        <p className="text-sm text-rd-ink/70">
+          This page isn’t reachable without an access key.
+        </p>
+      </section>
+    );
+  }
+
   const { players, scores } = data;
   const [saId, setSaId] = useState<string>('');
   const [day, setDay] = useState<1 | 2>(1);

@@ -1,12 +1,13 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import type { Course } from '../types';
 
+// Score Entry is intentionally not in the public nav — reach it via the
+// bookmarked URL with the access key (see /enter route).
 const NAV = [
   { to: '/', label: 'Leaderboard', end: true },
   { to: '/eclectic', label: 'Eclectic', end: false },
   { to: '/results', label: 'Results', end: false },
   { to: '/players', label: 'Players', end: false },
-  { to: '/enter', label: 'Score Entry', end: false },
 ];
 
 export function Layout({ course }: { course: Course | null }) {

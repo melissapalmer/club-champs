@@ -33,6 +33,14 @@ TARA,SMITH,2700438384,1,B
 
 ## Score entry workflow
 
+Score Entry isn’t linked from the visible nav. To reach it, bookmark:
+
+```
+https://<your-pages-host>/#/enter?key=durban2026
+```
+
+Once visited with that key in the URL, the session remembers it for the rest of the browser session. Without the key the page shows "Not available". Note: this is cosmetic gating — anyone reading the public JS bundle can find the key. The real protection on writes is the GitHub PAT (next section).
+
 The `/enter` page is a simple in-browser form. Pick a player and a day, type the 18 hole scores, click **Save**.
 
 - **With a GitHub token configured:** the page commits the updated `public/data/scores.csv` directly to the repo. GitHub Pages rebuilds in ~30 s and the leaderboard updates on the next refresh.
