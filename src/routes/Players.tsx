@@ -44,14 +44,22 @@ function DivisionGroup({
       {rows.length === 0 ? (
         <p className="px-4 py-4 text-sm text-rd-ink/50">No players in this division.</p>
       ) : (
-        <table className="rd-table">
+        <table className="rd-table table-fixed">
+          <colgroup>
+            <col style={{ width: '34%' }} />
+            <col style={{ width: '24%' }} />
+            <col style={{ width: '10%' }} />
+            <col style={{ width: '10%' }} />
+            <col style={{ width: '10%' }} />
+            <col style={{ width: '12%' }} />
+          </colgroup>
           <thead>
             <tr>
               <th>Player</th>
               <th>SA ID</th>
-              <th className="text-right">HI</th>
-              <th className="text-right">HC</th>
-              <th className="text-right">PH</th>
+              <th>HI</th>
+              <th>HC</th>
+              <th>PH</th>
               <th>Tee</th>
             </tr>
           </thead>
@@ -71,9 +79,9 @@ function DivisionGroup({
                     )}
                   </td>
                   <td className="text-rd-ink/60 tabular-nums">{player.saId}</td>
-                  <td className="text-right">{num(player.hi, 1)}</td>
-                  <td className="text-right">{num(hc, 1)}</td>
-                  <td className="text-right">{num(ph)}</td>
+                  <td>{num(player.hi, 1)}</td>
+                  <td>{num(hc, 1)}</td>
+                  <td>{num(ph)}</td>
                   <td className="capitalize">{division.tee}</td>
                 </tr>
               ))}
