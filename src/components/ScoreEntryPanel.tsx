@@ -3,6 +3,12 @@ import { serialiseScoresCsv, upsertScore } from '../csv/scores';
 import type { AppData } from '../data';
 import { fullName } from '../format';
 import { commitFile, loadGitHubSettings } from '../github';
+import {
+  courseHandicap,
+  divisionFor,
+  playingHandicap,
+  teeRatings,
+} from '../scoring/engine';
 import type { DayScore, Player } from '../types';
 
 const HOLE_NUMS = Array.from({ length: 18 }, (_, i) => i + 1);
@@ -68,6 +74,24 @@ export function ScoreEntryPanel({
     [players, saId]
   );
 
+  // Look up the player's playing handicap so we can show net alongside gross.
+  const ph: number | null = useMemo(() => {
+    if (!player) return null;
+    const division = divisionFor(player, data.course);
+    if (!division) return null;
+    const tee = data.course.tees[division.tee];
+    if (!tee) return null;
+    const ratings = teeRatings(tee, data.course.gender);
+    const hc = courseHandicap(
+      player.hi,
+      ratings.slope,
+      ratings.cr,
+      tee.par,
+      data.course.maxHandicap
+    );
+    return playingHandicap(hc, division.handicapPct);
+  }, [player, data.course]);
+
   // Load existing scores into the form whenever the player or day changes.
   useEffect(() => {
     if (!saId) {
@@ -95,6 +119,7 @@ export function ScoreEntryPanel({
     ? (back9 as number[]).reduce((a, b) => a + b, 0)
     : null;
   const total = front9Sum != null && back9Sum != null ? front9Sum + back9Sum : null;
+  const net = total != null && ph != null ? total - ph : null;
 
   const onSave = async () => {
     if (!player) return;
@@ -225,12 +250,16 @@ export function ScoreEntryPanel({
                 </div>
               ))}
             </div>
-            <div className="flex justify-between items-baseline text-sm">
+            <div className="flex flex-wrap justify-between items-baseline gap-x-4 gap-y-1 text-sm">
               <span className="text-rd-ink/70">{filledCount}/18 holes entered</span>
               <span className="text-rd-ink/70">
                 In: <span className="font-semibold">{back9Sum ?? '—'}</span>
                 {' · '}
-                Total: <span className="font-semibold text-rd-navy">{total ?? '—'}</span>
+                Gross: <span className="font-semibold text-rd-navy">{total ?? '—'}</span>
+                {' · '}
+                PH: <span className="font-semibold">{ph ?? '—'}</span>
+                {' · '}
+                Net: <span className="font-semibold text-rd-navy">{net ?? '—'}</span>
               </span>
             </div>
           </div>
