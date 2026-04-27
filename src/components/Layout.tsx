@@ -21,7 +21,7 @@ export function Layout({ course }: { course: Course | null }) {
   return (
     <div className="min-h-screen flex flex-col">
       <header className="bg-rd-navy text-white">
-        <div className="max-w-6xl mx-auto px-4 py-5 flex items-center gap-4">
+        <div className="max-w-7xl mx-auto px-4 py-5 flex items-center gap-4">
           <img
             src={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/royal-durban-logo.webp`}
             alt="Royal Durban Golf Club"
@@ -40,7 +40,7 @@ export function Layout({ course }: { course: Course | null }) {
           </div>
         </div>
         <nav className="bg-rd-navy-deep">
-          <div className="max-w-6xl mx-auto px-2 flex flex-wrap">
+          <div className="max-w-7xl mx-auto px-2 flex flex-wrap">
             {items.map((item) => (
               <NavLink
                 key={item.to}
@@ -60,7 +60,7 @@ export function Layout({ course }: { course: Course | null }) {
           </div>
         </nav>
       </header>
-      <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-6">
+      <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
         <Outlet />
       </main>
       <footer className="border-t border-rd-cream text-xs text-rd-ink/60 py-4 text-center">

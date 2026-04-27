@@ -2,6 +2,7 @@ import { Fragment, useMemo, useState } from 'react';
 import { useIsAdmin } from '../admin';
 import { DivisionTabs } from '../components/DivisionTabs';
 import { ScoreEditModal } from '../components/ScoreEditModal';
+import { ScoreLegend } from '../components/ScoreLegend';
 import { ScoreSymbol } from '../components/ScoreSymbol';
 import type { AppData } from '../data';
 import { fullName, num } from '../format';
@@ -135,23 +136,6 @@ function HoleByHoleCard({ line, course }: { line: PlayerLine; course: Course }) 
             <td className="text-center font-medium tabular-nums">{totalPar || '·'}</td>
             <td></td>
           </tr>
-          <tr className="text-rd-ink/50 text-[11px]">
-            <th className="text-left pr-3 font-normal">SI</th>
-            {holes.slice(0, 9).map((h, i) => (
-              <td key={`sf${i}`} className="text-center tabular-nums px-1 py-1">
-                {h?.si ?? '·'}
-              </td>
-            ))}
-            <td className="bg-rd-navy/5"></td>
-            {holes.slice(9, 18).map((h, i) => (
-              <td key={`sb${i}`} className="text-center tabular-nums px-1 py-1">
-                {h?.si ?? '·'}
-              </td>
-            ))}
-            <td className="bg-rd-navy/5"></td>
-            <td></td>
-            <td></td>
-          </tr>
           <ScoreRow
             label="Sat"
             dayHoles={line.sat.holes}
@@ -210,23 +194,32 @@ export function Leaderboard({ data }: { data: AppData }) {
       </p>
       <DivisionTabs divisions={divs} active={activeDiv} onChange={setActiveDiv} />
 
+      <div className="mb-3">
+        <ScoreLegend />
+      </div>
+
       <div className="rd-card overflow-x-auto">
         <table className="rd-table">
           <thead>
             <tr>
-              <th></th>
-              <th>Pos</th>
-              <th>Player</th>
-              <th>HI</th>
-              <th>HC</th>
-              <th>PH</th>
-              <th>Sat&nbsp;Gross</th>
-              <th>Sat&nbsp;Net</th>
-              <th>Sun&nbsp;Gross</th>
-              <th>Sun&nbsp;Net</th>
-              <th>Total&nbsp;Gross</th>
-              <th>Total&nbsp;Net</th>
-              {admin && <th aria-label="Edit"></th>}
+              <th rowSpan={2}></th>
+              <th rowSpan={2}>Pos</th>
+              <th rowSpan={2}>Player</th>
+              <th rowSpan={2} className="hidden lg:table-cell">HI</th>
+              <th rowSpan={2} className="hidden lg:table-cell">HC</th>
+              <th rowSpan={2} className="hidden lg:table-cell">PH</th>
+              <th colSpan={2} className="text-center">Saturday</th>
+              <th colSpan={2} className="text-center">Sunday</th>
+              <th colSpan={2} className="text-center">Total</th>
+              {admin && <th rowSpan={2} aria-label="Edit"></th>}
+            </tr>
+            <tr>
+              <th className="hidden md:table-cell">Gross</th>
+              <th>Net</th>
+              <th className="hidden md:table-cell">Gross</th>
+              <th>Net</th>
+              <th className="hidden sm:table-cell">Gross</th>
+              <th>Net</th>
             </tr>
           </thead>
           <tbody>
@@ -255,14 +248,14 @@ export function Leaderboard({ data }: { data: AppData }) {
                     </td>
                     <td className="font-semibold text-rd-navy">{rank ?? '—'}</td>
                     <td>{fullName(line.player)}</td>
-                    <td>{num(line.player.hi, 1)}</td>
-                    <td>{num(line.hc, 1)}</td>
-                    <td>{num(line.ph)}</td>
-                    <td>{num(line.sat.gross)}</td>
+                    <td className="hidden lg:table-cell">{num(line.player.hi, 1)}</td>
+                    <td className="hidden lg:table-cell">{num(line.hc, 1)}</td>
+                    <td className="hidden lg:table-cell">{num(line.ph)}</td>
+                    <td className="hidden md:table-cell">{num(line.sat.gross)}</td>
                     <td>{num(line.sat.net)}</td>
-                    <td>{num(line.sun.gross)}</td>
+                    <td className="hidden md:table-cell">{num(line.sun.gross)}</td>
                     <td>{num(line.sun.net)}</td>
-                    <td className="font-medium">{num(line.overall.gross)}</td>
+                    <td className="hidden sm:table-cell font-medium">{num(line.overall.gross)}</td>
                     <td className="font-semibold text-rd-navy">
                       {num(line.overall.net)}
                     </td>
