@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { DivisionTabs } from '../components/DivisionTabs';
 import type { AppData } from '../data';
 import { fullName, num } from '../format';
 import {
@@ -24,26 +25,48 @@ function rowFor(player: Player, division: DivisionConfig | undefined, course: Co
   return { player, hc, ph };
 }
 
-function DivisionGroup({
-  division,
-  rows,
-}: {
-  division: DivisionConfig;
-  rows: Row[];
-}) {
+export function Players({ data }: { data: AppData }) {
+  const { course, players } = data;
+  const divs = useMemo(() => visibleDivisions(course), [course]);
+
+  const rowsByDiv = useMemo(() => {
+    const map = new Map<string, Row[]>();
+    for (const d of divs) map.set(d.code, []);
+    for (const player of players) {
+      const division = divisionFor(player, course);
+      if (!division) continue;
+      const list = map.get(division.code);
+      if (list) list.push(rowFor(player, division, course));
+    }
+    return map;
+  }, [players, course, divs]);
+
+  const [activeDiv, setActiveDiv] = useState<string>(divs[0]?.code ?? '');
+  const division = divs.find((d) => d.code === activeDiv);
+  const rows = rowsByDiv.get(activeDiv) ?? [];
+
+  const sortedRows = rows.slice().sort((a, b) => {
+    const la = a.player.lastName.localeCompare(b.player.lastName);
+    return la !== 0 ? la : a.player.firstName.localeCompare(b.player.firstName);
+  });
+
   return (
-    <div className="rd-card overflow-x-auto">
-      <div className="px-4 pt-3 pb-2 border-b border-rd-cream flex items-baseline justify-between">
-        <h2 className="text-xl text-rd-navy font-serif">{division.name} Division</h2>
-        <span className="text-sm text-rd-ink/60">
-          {rows.length} {rows.length === 1 ? 'player' : 'players'}
-          {' · '}
-          {division.hiMin > -100 ? `HI ${division.hiMin}–${division.hiMax}` : `HI ≤ ${division.hiMax}`}
-        </span>
-      </div>
-      {rows.length === 0 ? (
-        <p className="px-4 py-4 text-sm text-rd-ink/50">No players in this division.</p>
-      ) : (
+    <section>
+      <h1 className="text-2xl text-rd-navy mb-1">Players</h1>
+      <p className="text-sm text-rd-ink/60 mb-4">
+        {players.length} entered · {division ? `${rows.length} in ${division.name}` : 'select a division'}
+        {division && (
+          <>
+            {' · '}
+            {division.hiMin > -100
+              ? `HI ${division.hiMin}–${division.hiMax}`
+              : `HI ≤ ${division.hiMax}`}
+          </>
+        )}
+      </p>
+      <DivisionTabs divisions={divs} active={activeDiv} onChange={setActiveDiv} />
+
+      <div className="rd-card overflow-x-auto">
         <table className="rd-table table-fixed">
           <colgroup>
             <col style={{ width: '34%' }} />
@@ -64,13 +87,14 @@ function DivisionGroup({
             </tr>
           </thead>
           <tbody>
-            {rows
-              .slice()
-              .sort((a, b) => {
-                const la = a.player.lastName.localeCompare(b.player.lastName);
-                return la !== 0 ? la : a.player.firstName.localeCompare(b.player.firstName);
-              })
-              .map(({ player, hc, ph }) => (
+            {sortedRows.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="text-center py-8 text-rd-ink/50">
+                  No players in this division.
+                </td>
+              </tr>
+            ) : (
+              sortedRows.map(({ player, hc, ph }) => (
                 <tr key={player.saId}>
                   <td>
                     {fullName(player)}
@@ -82,42 +106,12 @@ function DivisionGroup({
                   <td>{num(player.hi, 1)}</td>
                   <td>{num(hc, 1)}</td>
                   <td>{num(ph)}</td>
-                  <td className="capitalize">{division.tee}</td>
+                  <td className="capitalize">{division?.tee}</td>
                 </tr>
-              ))}
+              ))
+            )}
           </tbody>
         </table>
-      )}
-    </div>
-  );
-}
-
-export function Players({ data }: { data: AppData }) {
-  const { course, players } = data;
-  const divs = useMemo(() => visibleDivisions(course), [course]);
-
-  const rowsByDiv = useMemo(() => {
-    const map = new Map<string, Row[]>();
-    for (const d of divs) map.set(d.code, []);
-    for (const player of players) {
-      const division = divisionFor(player, course);
-      if (!division) continue;
-      const list = map.get(division.code);
-      if (list) list.push(rowFor(player, division, course));
-    }
-    return map;
-  }, [players, course, divs]);
-
-  return (
-    <section>
-      <h1 className="text-2xl text-rd-navy mb-1">Players</h1>
-      <p className="text-sm text-rd-ink/60 mb-4">
-        {players.length} entered · grouped by division (derived from HI, overrides honoured).
-      </p>
-      <div className="space-y-4">
-        {divs.map((d) => (
-          <DivisionGroup key={d.code} division={d} rows={rowsByDiv.get(d.code) ?? []} />
-        ))}
       </div>
     </section>
   );

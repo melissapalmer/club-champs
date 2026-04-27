@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
+import { useIsAdmin } from '../admin';
 import { DivisionTabs } from '../components/DivisionTabs';
+import { ScoreEditModal } from '../components/ScoreEditModal';
 import type { AppData } from '../data';
 import { fullName, num } from '../format';
 import {
@@ -8,9 +10,30 @@ import {
   rankWithTies,
   visibleDivisions,
 } from '../scoring/engine';
+import type { Player } from '../types';
+
+function PencilIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M11.5 2.5l2 2L5 13l-3 1 1-3 8.5-8.5z" />
+    </svg>
+  );
+}
 
 export function Leaderboard({ data }: { data: AppData }) {
   const { course, players, scores } = data;
+  const admin = useIsAdmin();
+  const [editing, setEditing] = useState<Player | null>(null);
   const divs = useMemo(() => visibleDivisions(course), [course]);
   const lines = useMemo(
     () => buildPlayerLines(players, scores, course),
@@ -55,12 +78,13 @@ export function Leaderboard({ data }: { data: AppData }) {
               <th>Sun&nbsp;Net</th>
               <th>Total&nbsp;Gross</th>
               <th>Total&nbsp;Net</th>
+              {admin && <th aria-label="Edit"></th>}
             </tr>
           </thead>
           <tbody>
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={11} className="text-center py-8 text-rd-ink/50">
+                <td colSpan={admin ? 12 : 11} className="text-center py-8 text-rd-ink/50">
                   No players in this division.
                 </td>
               </tr>
@@ -78,11 +102,32 @@ export function Leaderboard({ data }: { data: AppData }) {
                 <td>{num(line.sun.net)}</td>
                 <td className="font-medium">{num(line.overall.gross)}</td>
                 <td className="font-semibold text-rd-navy">{num(line.overall.net)}</td>
+                {admin && (
+                  <td>
+                    <button
+                      type="button"
+                      onClick={() => setEditing(line.player)}
+                      className="inline-flex items-center justify-center text-rd-navy/60 hover:text-rd-navy"
+                      title={`Edit scores for ${fullName(line.player)}`}
+                      aria-label={`Edit scores for ${fullName(line.player)}`}
+                    >
+                      <PencilIcon />
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {editing && (
+        <ScoreEditModal
+          data={data}
+          player={editing}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </section>
   );
 }

@@ -1,16 +1,23 @@
 import { NavLink, Outlet } from 'react-router-dom';
+import { useIsAdmin } from '../admin';
 import type { Course } from '../types';
 
+type NavItem = { to: string; label: string; end: boolean; adminOnly?: boolean };
+
 // Score Entry is intentionally not in the public nav — reach it via the
-// bookmarked URL with the access key (see /enter route).
-const NAV = [
+// bookmarked URL with the access key (see /enter route). Config is visible
+// only when admin mode is active in this browser session.
+const NAV: NavItem[] = [
   { to: '/players', label: 'Players', end: false },
   { to: '/', label: 'Scores', end: true },
   { to: '/eclectic', label: 'Eclectic', end: false },
   { to: '/results', label: 'Results', end: false },
+  { to: '/config', label: 'Config', end: false, adminOnly: true },
 ];
 
 export function Layout({ course }: { course: Course | null }) {
+  const admin = useIsAdmin();
+  const items = NAV.filter((item) => !item.adminOnly || admin);
   return (
     <div className="min-h-screen flex flex-col">
       <header className="bg-rd-navy text-white">
@@ -34,7 +41,7 @@ export function Layout({ course }: { course: Course | null }) {
         </div>
         <nav className="bg-rd-navy-deep">
           <div className="max-w-6xl mx-auto px-2 flex flex-wrap">
-            {NAV.map((item) => (
+            {items.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}

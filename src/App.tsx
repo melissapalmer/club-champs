@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { useAppData } from './data';
+import { Config } from './routes/Config';
 import { Eclectic } from './routes/Eclectic';
 import { Enter } from './routes/Enter';
 import { Leaderboard } from './routes/Leaderboard';
@@ -38,6 +39,7 @@ export function App() {
           element={data ? <Players data={data} /> : <Loading />}
         />
         <Route path="/enter" element={data ? <Enter data={data} /> : <Loading />} />
+        <Route path="/config" element={data ? <Config data={data} /> : <Loading />} />
       </Route>
     </Routes>
   );
