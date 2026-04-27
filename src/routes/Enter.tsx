@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { ACCESS_KEY, setAdmin, useIsAdmin } from '../admin';
+import { useIsAdmin } from '../admin';
 import { GitHubSettingsDialog } from '../components/GitHubSettingsDialog';
 import { ScoreEntryPanel } from '../components/ScoreEntryPanel';
 import type { AppData } from '../data';
@@ -15,13 +15,6 @@ export function Enter({ data }: { data: AppData }) {
   const admin = useIsAdmin();
   const [showSettings, setShowSettings] = useState(false);
   const [gh, setGh] = useState<GitHubSettings | null>(loadGitHubSettings());
-
-  // If a fresh ?key=… arrives, store it and re-render with admin true.
-  useEffect(() => {
-    if (params.get('key') === ACCESS_KEY) {
-      setAdmin(true);
-    }
-  }, [params]);
 
   if (!admin) {
     return (

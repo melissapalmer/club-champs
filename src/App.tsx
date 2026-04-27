@@ -1,4 +1,6 @@
-import { Route, Routes } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Route, Routes, useSearchParams } from 'react-router-dom';
+import { ACCESS_KEY, setAdmin } from './admin';
 import { Layout } from './components/Layout';
 import { useAppData } from './data';
 import { useApplyBranding } from './theme';
@@ -10,9 +12,43 @@ import { ManagePlayers } from './routes/ManagePlayers';
 import { Players } from './routes/Players';
 import { Results } from './routes/Results';
 
+function useAccessKeyParam(): void {
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    let consumed = false;
+
+    // Case 1: ?key=… inside the routed (post-hash) query.
+    if (searchParams.get('key') === ACCESS_KEY) {
+      setAdmin(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete('key');
+      setSearchParams(next, { replace: true });
+      consumed = true;
+    }
+
+    // Case 2: ?key=… on the document URL (before the hash) — handy for
+    // pasting "https://…/club-champs/?key=durban2026" without the hash route.
+    const docParams = new URLSearchParams(window.location.search);
+    if (docParams.get('key') === ACCESS_KEY) {
+      setAdmin(true);
+      docParams.delete('key');
+      const search = docParams.toString() ? `?${docParams.toString()}` : '';
+      window.history.replaceState(
+        {},
+        '',
+        `${window.location.pathname}${search}${window.location.hash}`
+      );
+      consumed = true;
+    }
+
+    void consumed;
+  }, [searchParams, setSearchParams]);
+}
+
 export function App() {
   const { data, error } = useAppData();
   useApplyBranding(data?.course ?? null);
+  useAccessKeyParam();
 
   return (
     <Routes>
