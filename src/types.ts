@@ -3,8 +3,10 @@ export type Tee = { par: number; cr: number; slope: number };
 export type Hole = {
   /** Par for this hole (3, 4 or 5). */
   par: number;
-  /** Stroke index — handicap-stroke ranking, 1 = hardest hole through 18 = easiest. */
-  si: number;
+  /** Ladies' stroke index — handicap-stroke ranking, 1 = hardest. */
+  siWomen: number;
+  /** Mens' stroke index — handicap-stroke ranking, 1 = hardest. */
+  siMen: number;
 };
 
 export type PrizeCategory =

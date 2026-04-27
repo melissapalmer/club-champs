@@ -190,9 +190,12 @@ export function Config({ data }: { data: AppData }) {
     }));
   };
 
-  const updateHole = (idx: number, field: 'par' | 'si', v: number) => {
+  const updateHole = (idx: number, field: 'par' | 'siWomen' | 'siMen', v: number) => {
     setDraft((d) => {
-      const holes = [...(d.holes ?? Array.from({ length: 18 }, () => ({ par: 4, si: 0 })))];
+      const holes = [
+        ...(d.holes ??
+          Array.from({ length: 18 }, () => ({ par: 4, siWomen: 0, siMen: 0 }))),
+      ];
       holes[idx] = { ...holes[idx], [field]: v };
       return { ...d, holes };
     });
@@ -337,25 +340,28 @@ export function Config({ data }: { data: AppData }) {
         </div>
         <p className="text-xs text-rd-ink/60 mb-2">
           Per-hole par drives scorecard symbols (birdie/par/bogey…) on the Scores tab.
-          Stroke index (SI) is the handicap-stroke ranking, 1 = hardest.
+          Stroke index (SI) is the handicap-stroke ranking — 1 = hardest. Stored
+          separately for ladies and mens; the active one follows the event gender.
         </p>
         <div className="overflow-x-auto">
           <table className="rd-table table-fixed">
             <colgroup>
               <col style={{ width: '14%' }} />
-              <col style={{ width: '43%' }} />
-              <col style={{ width: '43%' }} />
+              <col style={{ width: '20%' }} />
+              <col style={{ width: '33%' }} />
+              <col style={{ width: '33%' }} />
             </colgroup>
             <thead>
               <tr>
                 <th>Hole</th>
                 <th>Par</th>
-                <th>SI</th>
+                <th>Ladies SI</th>
+                <th>Mens SI</th>
               </tr>
             </thead>
             <tbody>
               {Array.from({ length: 18 }, (_, i) => {
-                const h = draft.holes?.[i] ?? { par: 4, si: 0 };
+                const h = draft.holes?.[i] ?? { par: 4, siWomen: 0, siMen: 0 };
                 return (
                   <tr key={i}>
                     <td className="font-medium">{i + 1}</td>
@@ -363,7 +369,18 @@ export function Config({ data }: { data: AppData }) {
                       <NumField label="" value={h.par} onChange={(v) => updateHole(i, 'par', v)} />
                     </td>
                     <td>
-                      <NumField label="" value={h.si} onChange={(v) => updateHole(i, 'si', v)} />
+                      <NumField
+                        label=""
+                        value={h.siWomen}
+                        onChange={(v) => updateHole(i, 'siWomen', v)}
+                      />
+                    </td>
+                    <td>
+                      <NumField
+                        label=""
+                        value={h.siMen}
+                        onChange={(v) => updateHole(i, 'siMen', v)}
+                      />
                     </td>
                   </tr>
                 );

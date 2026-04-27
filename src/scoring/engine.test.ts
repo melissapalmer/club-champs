@@ -28,7 +28,11 @@ const course: Course = {
     { code: 'B', name: 'Silver', tee: 'red', hiMin: 6.6, hiMax: 15.3, handicapPct: 100 },
     { code: 'C', name: 'Bronze', tee: 'red', hiMin: 15.4, hiMax: 10001, handicapPct: 100 },
   ],
-  holes: Array.from({ length: 18 }, (_, i) => ({ par: 4, si: i + 1 })),
+  holes: Array.from({ length: 18 }, (_, i) => ({
+    par: 4,
+    siWomen: i + 1,
+    siMen: i + 1,
+  })),
 };
 
 // Hole-by-hole values copied directly from `Eclectic B` row 5 (Kay Dunkley) of the spreadsheet.
