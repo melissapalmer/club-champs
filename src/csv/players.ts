@@ -25,7 +25,7 @@ export function parsePlayersCsv(text: string): Player[] {
         hi: Number(row.hi),
       };
       const div = row.division?.trim().toUpperCase();
-      if (div === 'A' || div === 'B' || div === 'C') {
+      if (div === 'A' || div === 'B' || div === 'C' || div === 'D') {
         player.divisionOverride = div;
       }
       return player;

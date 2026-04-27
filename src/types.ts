@@ -86,7 +86,7 @@ export type Player = {
   lastName: string;
   saId: string;
   hi: number;
-  divisionOverride?: 'A' | 'B' | 'C';
+  divisionOverride?: DivisionCode;
 };
 
 export type DayScore = {

@@ -13,6 +13,7 @@ const NAV: NavItem[] = [
   { to: '/', label: 'Scores', end: true },
   { to: '/eclectic', label: 'Eclectic', end: false },
   { to: '/results', label: 'Results', end: false },
+  { to: '/manage-players', label: 'Manage Players', end: false, adminOnly: true },
   { to: '/config', label: 'Config', end: false, adminOnly: true },
 ];
 
