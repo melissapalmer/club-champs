@@ -50,6 +50,12 @@ export function App() {
   useApplyBranding(data?.course ?? null);
   useAccessKeyParam();
 
+  useEffect(() => {
+    if (!data?.course) return;
+    const { club, event } = data.course;
+    document.title = club && event ? `${club} — ${event}` : (event ?? club ?? 'Club Champs');
+  }, [data?.course]);
+
   return (
     <Routes>
       <Route element={<Layout course={data?.course ?? null} />}>
