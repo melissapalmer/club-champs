@@ -7,6 +7,22 @@ export type Hole = {
   si: number;
 };
 
+export type PrizeCategory =
+  | 'satGross'
+  | 'satNet'
+  | 'sunGross'
+  | 'sunNet'
+  | 'overallGross'
+  | 'overallNet'
+  | 'eclectic';
+
+export type PrizeConfig = {
+  /** How many places to award per category. Defaults to 2 if missing. */
+  topN?: number;
+  /** Which categories this division awards. Defaults to all if missing. */
+  categories?: PrizeCategory[];
+};
+
 export type DivisionConfig = {
   code: 'A' | 'B' | 'C';
   name: string;
@@ -15,6 +31,7 @@ export type DivisionConfig = {
   hiMax: number;
   handicapPct: number;
   hidden?: boolean;
+  prizes?: PrizeConfig;
 };
 
 export type Course = {

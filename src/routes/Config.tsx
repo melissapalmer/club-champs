@@ -8,7 +8,12 @@ import {
   saveGitHubSettings,
   type GitHubSettings,
 } from '../github';
-import type { Course, DivisionConfig } from '../types';
+import {
+  DEFAULT_TOP_N,
+  PRIZE_CATEGORIES,
+  PRIZE_LABELS,
+} from '../prizes';
+import type { Course, DivisionConfig, PrizeCategory, PrizeConfig } from '../types';
 
 const TEE_KEYS = ['yellow', 'white', 'blue', 'red'] as const;
 
@@ -25,30 +30,105 @@ function downloadJson(filename: string, content: string) {
 function NumField({
   label,
   value,
-  step = 1,
   onChange,
   className = '',
 }: {
   label: string;
   value: number;
-  step?: number;
   onChange: (v: number) => void;
   className?: string;
 }) {
+  // Local string state so the user can clear the field and retype freely
+  // without each keystroke snapping back to the parsed parent value.
+  const [text, setText] = useState<string>(() =>
+    Number.isFinite(value) ? String(value) : ''
+  );
+
+  useEffect(() => {
+    if (Number(text) !== value) {
+      setText(Number.isFinite(value) ? String(value) : '');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
   return (
     <label className={`block ${className}`}>
-      <span className="text-xs text-rd-ink/60 block">{label}</span>
+      {label && <span className="text-xs text-rd-ink/60 block">{label}</span>}
       <input
-        type="number"
-        step={step}
-        className="w-full border rounded px-2 py-1 mt-0.5 tabular-nums"
-        value={Number.isFinite(value) ? value : ''}
+        type="text"
+        inputMode="decimal"
+        className={`w-full border rounded px-2 py-1 tabular-nums ${label ? 'mt-0.5' : ''}`}
+        value={text}
         onChange={(e) => {
-          const n = Number(e.target.value);
+          const v = e.target.value;
+          setText(v);
+          if (v === '' || v === '-' || v === '.' || v === '-.') return;
+          const n = Number(v);
           if (Number.isFinite(n)) onChange(n);
+        }}
+        onBlur={() => {
+          if (text === '' || !Number.isFinite(Number(text))) {
+            setText(Number.isFinite(value) ? String(value) : '');
+          }
         }}
       />
     </label>
+  );
+}
+
+function PrizesEditor({
+  prizes,
+  onChange,
+}: {
+  prizes: PrizeConfig | undefined;
+  onChange: (p: PrizeConfig) => void;
+}) {
+  const topN = prizes?.topN ?? DEFAULT_TOP_N;
+  const enabled = new Set<PrizeCategory>(prizes?.categories ?? PRIZE_CATEGORIES);
+
+  const toggle = (cat: PrizeCategory) => {
+    const next = new Set(enabled);
+    if (next.has(cat)) next.delete(cat);
+    else next.add(cat);
+    // Preserve canonical order regardless of click sequence.
+    const ordered = PRIZE_CATEGORIES.filter((c) => next.has(c));
+    onChange({ topN, categories: ordered });
+  };
+
+  const setTopN = (v: number) => onChange({ topN: v, categories: Array.from(enabled) });
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-sm font-medium">Prizes</span>
+        <label className="text-sm text-rd-ink/70 inline-flex items-center gap-2">
+          Top
+          <input
+            type="number"
+            min={1}
+            max={10}
+            className="w-14 border rounded px-2 py-1 tabular-nums"
+            value={topN}
+            onChange={(e) => {
+              const n = Number(e.target.value);
+              if (Number.isFinite(n) && n >= 1) setTopN(n);
+            }}
+          />
+        </label>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1">
+        {PRIZE_CATEGORIES.map((cat) => (
+          <label key={cat} className="inline-flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={enabled.has(cat)}
+              onChange={() => toggle(cat)}
+            />
+            {PRIZE_LABELS[cat]}
+          </label>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -229,7 +309,6 @@ export function Config({ data }: { data: AppData }) {
                     <td>
                       <NumField
                         label=""
-                        step={0.1}
                         value={t.cr}
                         onChange={(v) => updateTee(k, 'cr', v)}
                       />
@@ -330,13 +409,11 @@ export function Config({ data }: { data: AppData }) {
               </label>
               <NumField
                 label="HI min"
-                step={0.1}
                 value={div.hiMin}
                 onChange={(v) => updateDivision(idx, { hiMin: v })}
               />
               <NumField
                 label="HI max"
-                step={0.1}
                 value={div.hiMax}
                 onChange={(v) => updateDivision(idx, { hiMax: v })}
               />
@@ -355,6 +432,13 @@ export function Config({ data }: { data: AppData }) {
                   Hidden — skip this division everywhere (Players, Scores, Eclectic, Results)
                 </span>
               </label>
+
+              <div className="col-span-2 sm:col-span-6 border-t border-rd-cream pt-3">
+                <PrizesEditor
+                  prizes={div.prizes}
+                  onChange={(p) => updateDivision(idx, { prizes: p })}
+                />
+              </div>
             </div>
           ))}
         </div>
