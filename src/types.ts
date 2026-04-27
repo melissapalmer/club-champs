@@ -1,4 +1,10 @@
-export type Tee = { par: number; cr: number; slope: number };
+export type TeeRatings = { cr: number; slope: number };
+
+export type Tee = {
+  par: number;
+  women: TeeRatings;
+  men: TeeRatings;
+};
 
 export type Hole = {
   /** Par for this hole (3, 4 or 5). */

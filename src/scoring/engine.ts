@@ -1,4 +1,9 @@
-import type { Course, DivisionConfig, DayScore, Player } from '../types';
+import type { Course, DivisionConfig, DayScore, Player, Tee, TeeRatings } from '../types';
+
+/** Pick the cr/slope appropriate for the event gender from a tee. */
+export function teeRatings(tee: Tee, gender: Course['gender']): TeeRatings {
+  return tee[gender];
+}
 
 export function courseHandicap(
   hi: number,
@@ -136,9 +141,11 @@ export function buildPlayerLines(
   return players.map((player) => {
     const division = divisionFor(player, course);
     const tee = division ? course.tees[division.tee] : undefined;
-    const hc = tee
-      ? courseHandicap(player.hi, tee.slope, tee.cr, tee.par, course.maxHandicap)
-      : null;
+    const ratings = tee ? teeRatings(tee, course.gender) : undefined;
+    const hc =
+      tee && ratings
+        ? courseHandicap(player.hi, ratings.slope, ratings.cr, tee.par, course.maxHandicap)
+        : null;
     const ph = hc != null && division ? playingHandicap(hc, division.handicapPct) : null;
 
     const day1Holes = scoreByKey.get(`${player.saId}:1`)?.holes ?? EMPTY_HOLES;

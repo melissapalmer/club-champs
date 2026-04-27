@@ -6,6 +6,7 @@ import {
   courseHandicap,
   divisionFor,
   playingHandicap,
+  teeRatings,
   visibleDivisions,
 } from '../scoring/engine';
 import type { Course, DivisionConfig, Player } from '../types';
@@ -18,9 +19,11 @@ type Row = {
 
 function rowFor(player: Player, division: DivisionConfig | undefined, course: Course): Row {
   const tee = division ? course.tees[division.tee] : undefined;
-  const hc = tee
-    ? courseHandicap(player.hi, tee.slope, tee.cr, tee.par, course.maxHandicap)
-    : null;
+  const ratings = tee ? teeRatings(tee, course.gender) : undefined;
+  const hc =
+    tee && ratings
+      ? courseHandicap(player.hi, ratings.slope, ratings.cr, tee.par, course.maxHandicap)
+      : null;
   const ph = hc != null && division ? playingHandicap(hc, division.handicapPct) : null;
   return { player, hc, ph };
 }

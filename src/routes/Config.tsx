@@ -179,8 +179,26 @@ export function Config({ data }: { data: AppData }) {
     );
   }
 
-  const updateTee = (key: typeof TEE_KEYS[number], field: 'par' | 'cr' | 'slope', v: number) => {
-    setDraft((d) => ({ ...d, tees: { ...d.tees, [key]: { ...d.tees[key], [field]: v } } }));
+  const updateTeePar = (key: typeof TEE_KEYS[number], v: number) => {
+    setDraft((d) => ({ ...d, tees: { ...d.tees, [key]: { ...d.tees[key], par: v } } }));
+  };
+
+  const updateTeeRatings = (
+    key: typeof TEE_KEYS[number],
+    gender: 'women' | 'men',
+    field: 'cr' | 'slope',
+    v: number
+  ) => {
+    setDraft((d) => ({
+      ...d,
+      tees: {
+        ...d.tees,
+        [key]: {
+          ...d.tees[key],
+          [gender]: { ...d.tees[key][gender], [field]: v },
+        },
+      },
+    }));
   };
 
   const updateDivision = (idx: number, patch: Partial<DivisionConfig>) => {
@@ -283,19 +301,31 @@ export function Config({ data }: { data: AppData }) {
       </div>
 
       <div className="rd-card p-4">
-        <h2 className="text-lg text-rd-navy font-serif mb-3">Tees</h2>
+        <h2 className="text-lg text-rd-navy font-serif mb-2">Tees</h2>
+        <p className="text-xs text-rd-ink/60 mb-2">
+          Course rating and slope are stored per gender. The pair used at runtime
+          is picked from the event gender (currently <strong>{draft.gender}</strong>).
+        </p>
         <div className="overflow-x-auto">
           <table className="rd-table table-fixed">
             <colgroup>
-              <col style={{ width: '20%' }} />
-              <col style={{ width: '26%' }} />
-              <col style={{ width: '27%' }} />
-              <col style={{ width: '27%' }} />
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '18.5%' }} />
+              <col style={{ width: '18.5%' }} />
+              <col style={{ width: '18.5%' }} />
+              <col style={{ width: '18.5%' }} />
             </colgroup>
             <thead>
               <tr>
-                <th>Tee</th>
-                <th>Par</th>
+                <th rowSpan={2}>Tee</th>
+                <th rowSpan={2}>Par</th>
+                <th colSpan={2} className="text-center">Ladies</th>
+                <th colSpan={2} className="text-center">Mens</th>
+              </tr>
+              <tr>
+                <th>CR</th>
+                <th>Slope</th>
                 <th>CR</th>
                 <th>Slope</th>
               </tr>
@@ -307,20 +337,34 @@ export function Config({ data }: { data: AppData }) {
                   <tr key={k}>
                     <td className="capitalize">{k}</td>
                     <td>
-                      <NumField label="" value={t.par} onChange={(v) => updateTee(k, 'par', v)} />
+                      <NumField label="" value={t.par} onChange={(v) => updateTeePar(k, v)} />
                     </td>
                     <td>
                       <NumField
                         label=""
-                        value={t.cr}
-                        onChange={(v) => updateTee(k, 'cr', v)}
+                        value={t.women.cr}
+                        onChange={(v) => updateTeeRatings(k, 'women', 'cr', v)}
                       />
                     </td>
                     <td>
                       <NumField
                         label=""
-                        value={t.slope}
-                        onChange={(v) => updateTee(k, 'slope', v)}
+                        value={t.women.slope}
+                        onChange={(v) => updateTeeRatings(k, 'women', 'slope', v)}
+                      />
+                    </td>
+                    <td>
+                      <NumField
+                        label=""
+                        value={t.men.cr}
+                        onChange={(v) => updateTeeRatings(k, 'men', 'cr', v)}
+                      />
+                    </td>
+                    <td>
+                      <NumField
+                        label=""
+                        value={t.men.slope}
+                        onChange={(v) => updateTeeRatings(k, 'men', 'slope', v)}
                       />
                     </td>
                   </tr>

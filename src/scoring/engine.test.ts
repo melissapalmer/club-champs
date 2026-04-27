@@ -18,10 +18,26 @@ const course: Course = {
   maxHandicap: 36,
   eclecticHandicapPct: 25,
   tees: {
-    yellow: { par: 72, cr: 72.7, slope: 124 },
-    white: { par: 72, cr: 77.7, slope: 137 },
-    blue: { par: 72, cr: 75, slope: 130 },
-    red: { par: 72, cr: 72.7, slope: 123 },
+    yellow: {
+      par: 72,
+      women: { cr: 72.7, slope: 124 },
+      men: { cr: 79.0, slope: 136 },
+    },
+    white: {
+      par: 72,
+      women: { cr: 77.7, slope: 137 },
+      men: { cr: 71.6, slope: 119 },
+    },
+    blue: {
+      par: 72,
+      women: { cr: 75.0, slope: 130 },
+      men: { cr: 68.7, slope: 116 },
+    },
+    red: {
+      par: 72,
+      women: { cr: 72.7, slope: 123 },
+      men: { cr: 67.0, slope: 111 },
+    },
   },
   divisions: [
     { code: 'A', name: 'Gold', tee: 'red', hiMin: -999, hiMax: 6.5, handicapPct: 100 },
