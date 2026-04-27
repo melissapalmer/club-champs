@@ -34,7 +34,7 @@ export function Leaderboard({ data }: { data: AppData }) {
 
   return (
     <section>
-      <h1 className="text-2xl text-rd-navy mb-1">Running Scores</h1>
+      <h1 className="text-2xl text-rd-navy mb-1">Scores</h1>
       <p className="text-sm text-rd-ink/60 mb-4">
         Medal scoring across two days · ranked by overall net.
       </p>
@@ -46,15 +46,15 @@ export function Leaderboard({ data }: { data: AppData }) {
             <tr>
               <th>Pos</th>
               <th>Player</th>
-              <th className="text-right">HI</th>
-              <th className="text-right">HC</th>
-              <th className="text-right">PH</th>
-              <th className="text-right">Sat&nbsp;Gross</th>
-              <th className="text-right">Sat&nbsp;Net</th>
-              <th className="text-right">Sun&nbsp;Gross</th>
-              <th className="text-right">Sun&nbsp;Net</th>
-              <th className="text-right">Total&nbsp;Gross</th>
-              <th className="text-right">Total&nbsp;Net</th>
+              <th>HI</th>
+              <th>HC</th>
+              <th>PH</th>
+              <th>Sat&nbsp;Gross</th>
+              <th>Sat&nbsp;Net</th>
+              <th>Sun&nbsp;Gross</th>
+              <th>Sun&nbsp;Net</th>
+              <th>Total&nbsp;Gross</th>
+              <th>Total&nbsp;Net</th>
             </tr>
           </thead>
           <tbody>
@@ -69,17 +69,15 @@ export function Leaderboard({ data }: { data: AppData }) {
               <tr key={line.player.saId}>
                 <td className="font-semibold text-rd-navy">{rank ?? '—'}</td>
                 <td>{fullName(line.player)}</td>
-                <td className="text-right">{num(line.player.hi, 1)}</td>
-                <td className="text-right">{num(line.hc, 1)}</td>
-                <td className="text-right">{num(line.ph)}</td>
-                <td className="text-right">{num(line.sat.gross)}</td>
-                <td className="text-right">{num(line.sat.net)}</td>
-                <td className="text-right">{num(line.sun.gross)}</td>
-                <td className="text-right">{num(line.sun.net)}</td>
-                <td className="text-right font-medium">{num(line.overall.gross)}</td>
-                <td className="text-right font-semibold text-rd-navy">
-                  {num(line.overall.net)}
-                </td>
+                <td>{num(line.player.hi, 1)}</td>
+                <td>{num(line.hc, 1)}</td>
+                <td>{num(line.ph)}</td>
+                <td>{num(line.sat.gross)}</td>
+                <td>{num(line.sat.net)}</td>
+                <td>{num(line.sun.gross)}</td>
+                <td>{num(line.sun.net)}</td>
+                <td className="font-medium">{num(line.overall.gross)}</td>
+                <td className="font-semibold text-rd-navy">{num(line.overall.net)}</td>
               </tr>
             ))}
           </tbody>
