@@ -205,9 +205,9 @@ export function Leaderboard({ data }: { data: AppData }) {
               <th rowSpan={2}></th>
               <th rowSpan={2}>Pos</th>
               <th rowSpan={2}>Player</th>
-              <th rowSpan={2} className="hidden md:table-cell">HI</th>
-              <th rowSpan={2} className="hidden md:table-cell">HC</th>
-              <th rowSpan={2} className="hidden md:table-cell">PH</th>
+              <th rowSpan={2} className="hidden sm:table-cell">HI</th>
+              <th rowSpan={2} className="hidden sm:table-cell">HC</th>
+              <th rowSpan={2} className="hidden sm:table-cell">PH</th>
               <th colSpan={2} className="text-center">Saturday</th>
               <th colSpan={2} className="text-center">Sunday</th>
               <th colSpan={2} className="text-center">Total</th>
@@ -248,9 +248,9 @@ export function Leaderboard({ data }: { data: AppData }) {
                     </td>
                     <td className="font-semibold text-rd-navy">{rank ?? '—'}</td>
                     <td>{fullName(line.player)}</td>
-                    <td className="hidden md:table-cell">{num(line.player.hi, 1)}</td>
-                    <td className="hidden md:table-cell">{num(line.hc, 1)}</td>
-                    <td className="hidden md:table-cell">{num(line.ph)}</td>
+                    <td className="hidden sm:table-cell">{num(line.player.hi, 1)}</td>
+                    <td className="hidden sm:table-cell">{num(line.hc, 1)}</td>
+                    <td className="hidden sm:table-cell">{num(line.ph)}</td>
                     <td className="hidden sm:table-cell">{num(line.sat.gross)}</td>
                     <td>{num(line.sat.net)}</td>
                     <td className="hidden sm:table-cell">{num(line.sun.gross)}</td>

@@ -31,10 +31,10 @@
     @apply w-full text-sm border-collapse;
   }
   .rd-table thead th {
-    @apply bg-rd-navy/5 text-rd-navy font-semibold text-left px-3 py-2 border-b border-rd-navy/10 whitespace-nowrap;
+    @apply bg-rd-navy/5 text-rd-navy font-semibold text-left px-2 md:px-3 py-2 border-b border-rd-navy/10 whitespace-nowrap;
   }
   .rd-table tbody td {
-    @apply px-3 py-2 border-b border-rd-cream;
+    @apply px-2 md:px-3 py-2 border-b border-rd-cream;
   }
   .rd-table thead th:not(:last-child),
   .rd-table tbody td:not(:last-child) {
