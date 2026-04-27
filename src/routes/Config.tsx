@@ -10,10 +10,30 @@ import {
 } from '../github';
 import {
   DEFAULT_TOP_N,
+  defaultAwards,
   PRIZE_CATEGORIES,
   PRIZE_LABELS,
 } from '../prizes';
-import type { Course, DivisionConfig, PrizeCategory, PrizeConfig } from '../types';
+import { resolveAssetUrl } from '../theme';
+import type {
+  Branding,
+  BrandingColors,
+  Course,
+  DivisionCode,
+  DivisionConfig,
+  PrizeAward,
+  PrizeCategory,
+  PrizeConfig,
+} from '../types';
+
+const COLOR_KEYS: { key: keyof BrandingColors; label: string; fallback: string }[] = [
+  { key: 'navy', label: 'Primary (navy)', fallback: '#0B1E3F' },
+  { key: 'navyDeep', label: 'Primary darker', fallback: '#06142D' },
+  { key: 'gold', label: 'Accent (gold)', fallback: '#B8893A' },
+  { key: 'goldLight', label: 'Accent lighter', fallback: '#D4A859' },
+  { key: 'cream', label: 'Background', fallback: '#F6F2EA' },
+  { key: 'ink', label: 'Body text', fallback: '#1F2937' },
+];
 
 const TEE_KEYS = ['yellow', 'white', 'blue', 'red'] as const;
 
@@ -76,6 +96,80 @@ function NumField({
   );
 }
 
+function BrandingEditor({
+  branding,
+  onChange,
+}: {
+  branding: Branding | undefined;
+  onChange: (b: Branding) => void;
+}) {
+  const colors = branding?.colors ?? {};
+  const setLogo = (logoUrl: string) => onChange({ ...branding, logoUrl });
+  const setColor = (key: keyof BrandingColors, value: string) =>
+    onChange({ ...branding, colors: { ...colors, [key]: value } });
+  const previewSrc = resolveAssetUrl(branding?.logoUrl);
+
+  return (
+    <div className="rd-card p-4 space-y-3">
+      <div>
+        <h2 className="text-lg text-rd-navy font-serif">Branding</h2>
+        <p className="text-xs text-rd-ink/60 mt-1">
+          Use a fully-qualified URL (e.g. <code>https://…/logo.png</code>) or the
+          name of a file you've placed in <code>public/</code>
+          (e.g. <code>my-club-logo.png</code>). Colours apply live across the site.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-end">
+        <TextField
+          label="Logo URL"
+          value={branding?.logoUrl ?? ''}
+          onChange={setLogo}
+        />
+        <div className="bg-rd-navy rounded p-2 inline-flex items-center justify-center">
+          {previewSrc ? (
+            <img
+              src={previewSrc}
+              alt="Logo preview"
+              className="h-12 w-auto"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = 'none';
+              }}
+            />
+          ) : (
+            <span className="text-xs text-white/60 px-3 py-3">no logo</span>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {COLOR_KEYS.map(({ key, label, fallback }) => {
+          const v = colors[key] ?? fallback;
+          return (
+            <label key={key} className="block">
+              <span className="text-xs text-rd-ink/60 block">{label}</span>
+              <span className="flex items-center gap-2 mt-0.5">
+                <input
+                  type="color"
+                  className="h-8 w-10 border rounded p-0.5 bg-white shrink-0"
+                  value={v}
+                  onChange={(e) => setColor(key, e.target.value)}
+                />
+                <input
+                  type="text"
+                  className="w-full border rounded px-2 py-1 font-mono text-xs"
+                  value={v}
+                  onChange={(e) => setColor(key, e.target.value)}
+                />
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function PrizesEditor({
   prizes,
   onChange,
@@ -83,50 +177,69 @@ function PrizesEditor({
   prizes: PrizeConfig | undefined;
   onChange: (p: PrizeConfig) => void;
 }) {
-  const topN = prizes?.topN ?? DEFAULT_TOP_N;
-  const enabled = new Set<PrizeCategory>(prizes?.categories ?? PRIZE_CATEGORIES);
+  const awards = prizes?.awards ?? defaultAwards();
+  const enabled = new Map<PrizeCategory, number>(awards.map((a) => [a.category, a.topN]));
 
-  const toggle = (cat: PrizeCategory) => {
-    const next = new Set(enabled);
-    if (next.has(cat)) next.delete(cat);
-    else next.add(cat);
-    // Preserve canonical order regardless of click sequence.
-    const ordered = PRIZE_CATEGORIES.filter((c) => next.has(c));
-    onChange({ topN, categories: ordered });
+  const setAwards = (next: PrizeAward[]) => {
+    // Keep awards in canonical category order.
+    const ordered = PRIZE_CATEGORIES.flatMap((c) => {
+      const found = next.find((a) => a.category === c);
+      return found ? [found] : [];
+    });
+    onChange({ awards: ordered });
   };
 
-  const setTopN = (v: number) => onChange({ topN: v, categories: Array.from(enabled) });
+  const toggle = (cat: PrizeCategory) => {
+    if (enabled.has(cat)) {
+      enabled.delete(cat);
+    } else {
+      enabled.set(cat, DEFAULT_TOP_N);
+    }
+    setAwards(Array.from(enabled, ([category, topN]) => ({ category, topN })));
+  };
+
+  const setTopN = (cat: PrizeCategory, n: number) => {
+    if (!enabled.has(cat) || !(n >= 1)) return;
+    enabled.set(cat, n);
+    setAwards(Array.from(enabled, ([category, topN]) => ({ category, topN })));
+  };
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-sm font-medium">Prizes</span>
-        <label className="text-sm text-rd-ink/70 inline-flex items-center gap-2">
-          Top
-          <input
-            type="number"
-            min={1}
-            max={10}
-            className="w-14 border rounded px-2 py-1 tabular-nums"
-            value={topN}
-            onChange={(e) => {
-              const n = Number(e.target.value);
-              if (Number.isFinite(n) && n >= 1) setTopN(n);
-            }}
-          />
-        </label>
-      </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1">
-        {PRIZE_CATEGORIES.map((cat) => (
-          <label key={cat} className="inline-flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={enabled.has(cat)}
-              onChange={() => toggle(cat)}
-            />
-            {PRIZE_LABELS[cat]}
-          </label>
-        ))}
+      <span className="text-sm font-medium">Prizes</span>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+        {PRIZE_CATEGORIES.map((cat) => {
+          const isOn = enabled.has(cat);
+          const top = enabled.get(cat) ?? DEFAULT_TOP_N;
+          return (
+            <div
+              key={cat}
+              className="inline-flex items-center justify-between gap-2 text-sm"
+            >
+              <label className="inline-flex items-center gap-2">
+                <input type="checkbox" checked={isOn} onChange={() => toggle(cat)} />
+                {PRIZE_LABELS[cat]}
+              </label>
+              <label
+                className={`inline-flex items-center gap-1 ${isOn ? '' : 'opacity-40'}`}
+              >
+                <span className="text-xs text-rd-ink/60">Top</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={10}
+                  className="w-14 border rounded px-2 py-1 tabular-nums disabled:bg-rd-cream/40"
+                  disabled={!isOn}
+                  value={top}
+                  onChange={(e) => {
+                    const n = Number(e.target.value);
+                    if (Number.isFinite(n) && n >= 1) setTopN(cat, n);
+                  }}
+                />
+              </label>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -206,6 +319,35 @@ export function Config({ data }: { data: AppData }) {
       ...d,
       divisions: d.divisions.map((div, i) => (i === idx ? { ...div, ...patch } : div)),
     }));
+  };
+
+  const removeDivision = (idx: number) => {
+    setDraft((d) => ({
+      ...d,
+      divisions: d.divisions.filter((_, i) => i !== idx),
+    }));
+  };
+
+  const addDivision = () => {
+    setDraft((d) => {
+      const used = new Set(d.divisions.map((x) => x.code));
+      const next = (['A', 'B', 'C', 'D'] as DivisionCode[]).find((c) => !used.has(c));
+      if (!next) return d;
+      return {
+        ...d,
+        divisions: [
+          ...d.divisions,
+          {
+            code: next,
+            name: `Division ${next}`,
+            tee: 'red',
+            hiMin: 0,
+            hiMax: 54,
+            handicapPct: 100,
+          },
+        ],
+      };
+    });
   };
 
   const updateHole = (idx: number, field: 'par' | 'siWomen' | 'siMen', v: number) => {
@@ -299,6 +441,11 @@ export function Config({ data }: { data: AppData }) {
           />
         </div>
       </div>
+
+      <BrandingEditor
+        branding={draft.branding}
+        onChange={(b) => setDraft((d) => ({ ...d, branding: b }))}
+      />
 
       <div className="rd-card p-4">
         <h2 className="text-lg text-rd-navy font-serif mb-2">Tees</h2>
@@ -435,16 +582,35 @@ export function Config({ data }: { data: AppData }) {
       </div>
 
       <div className="rd-card p-4">
-        <h2 className="text-lg text-rd-navy font-serif mb-3">Divisions</h2>
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="text-lg text-rd-navy font-serif">Divisions</h2>
+          <button
+            type="button"
+            className="text-sm text-rd-navy hover:underline disabled:opacity-40 disabled:no-underline"
+            disabled={draft.divisions.length >= 4}
+            onClick={addDivision}
+          >
+            + Add division
+          </button>
+        </div>
         <div className="space-y-3">
           {draft.divisions.map((div, idx) => (
             <div
               key={div.code}
               className="border border-rd-cream rounded p-3 grid grid-cols-2 sm:grid-cols-6 gap-3"
             >
-              <div className="col-span-2 sm:col-span-1">
-                <span className="text-xs text-rd-ink/60 block">Code</span>
-                <div className="font-semibold mt-0.5">{div.code}</div>
+              <div className="col-span-2 sm:col-span-1 flex items-baseline justify-between sm:block">
+                <div>
+                  <span className="text-xs text-rd-ink/60 block">Code</span>
+                  <div className="font-semibold mt-0.5">{div.code}</div>
+                </div>
+                <button
+                  type="button"
+                  className="text-xs text-red-700 hover:underline mt-1"
+                  onClick={() => removeDivision(idx)}
+                >
+                  Remove
+                </button>
               </div>
               <TextField
                 label="Name"

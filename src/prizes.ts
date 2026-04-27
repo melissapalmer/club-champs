@@ -1,5 +1,5 @@
 import type { PlayerLine } from './scoring/engine';
-import type { PrizeCategory } from './types';
+import type { PrizeAward, PrizeCategory } from './types';
 
 export const PRIZE_CATEGORIES: PrizeCategory[] = [
   'satGross',
@@ -32,3 +32,8 @@ export const PRIZE_PICK: Record<PrizeCategory, (l: PlayerLine) => number | null>
 };
 
 export const DEFAULT_TOP_N = 2;
+
+/** When a division has no `prizes` set, award top 2 across every category. */
+export function defaultAwards(): PrizeAward[] {
+  return PRIZE_CATEGORIES.map((category) => ({ category, topN: DEFAULT_TOP_N }));
+}

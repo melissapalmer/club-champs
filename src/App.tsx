@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { useAppData } from './data';
+import { useApplyBranding } from './theme';
 import { Config } from './routes/Config';
 import { Eclectic } from './routes/Eclectic';
 import { Enter } from './routes/Enter';
@@ -10,6 +11,7 @@ import { Results } from './routes/Results';
 
 export function App() {
   const { data, error } = useAppData();
+  useApplyBranding(data?.course ?? null);
 
   return (
     <Routes>

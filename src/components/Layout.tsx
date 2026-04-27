@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useIsAdmin } from '../admin';
+import { resolveAssetUrl } from '../theme';
 import type { Course } from '../types';
 
 type NavItem = { to: string; label: string; end: boolean; adminOnly?: boolean };
@@ -23,8 +24,8 @@ export function Layout({ course }: { course: Course | null }) {
       <header className="bg-rd-navy text-white">
         <div className="max-w-7xl mx-auto px-4 py-5 flex items-center gap-4">
           <img
-            src={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/royal-durban-logo.webp`}
-            alt="Royal Durban Golf Club"
+            src={resolveAssetUrl(course?.branding?.logoUrl) ?? resolveAssetUrl('royal-durban-logo.webp')}
+            alt={course?.club ?? 'Club logo'}
             className="h-14 w-auto shrink-0"
             onError={(e) => {
               (e.currentTarget as HTMLImageElement).style.display = 'none';

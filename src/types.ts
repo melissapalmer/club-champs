@@ -24,15 +24,21 @@ export type PrizeCategory =
   | 'overallNet'
   | 'eclectic';
 
-export type PrizeConfig = {
-  /** How many places to award per category. Defaults to 2 if missing. */
-  topN?: number;
-  /** Which categories this division awards. Defaults to all if missing. */
-  categories?: PrizeCategory[];
+export type PrizeAward = {
+  category: PrizeCategory;
+  /** How many places to award for this prize. */
+  topN: number;
 };
 
+export type PrizeConfig = {
+  /** Ordered list of prizes this division awards, each with its own top‑N. */
+  awards?: PrizeAward[];
+};
+
+export type DivisionCode = 'A' | 'B' | 'C' | 'D';
+
 export type DivisionConfig = {
-  code: 'A' | 'B' | 'C';
+  code: DivisionCode;
   name: string;
   tee: keyof Course['tees'];
   hiMin: number;
@@ -40,6 +46,25 @@ export type DivisionConfig = {
   handicapPct: number;
   hidden?: boolean;
   prizes?: PrizeConfig;
+};
+
+export type BrandingColors = {
+  navy?: string;
+  navyDeep?: string;
+  gold?: string;
+  goldLight?: string;
+  cream?: string;
+  ink?: string;
+};
+
+export type Branding = {
+  /**
+   * Logo asset. Either a fully-qualified URL (https://…) or a path that's
+   * resolved against the deployed BASE_URL (e.g. "royal-durban-logo.webp"
+   * for a file inside the `public/` folder).
+   */
+  logoUrl?: string;
+  colors?: BrandingColors;
 };
 
 export type Course = {
@@ -52,6 +77,8 @@ export type Course = {
   divisions: DivisionConfig[];
   /** Per-hole layout (length 18). Used for scorecard symbols (par-relative) and SI display. */
   holes: Hole[];
+  /** Optional branding — logo + colour palette. Falls back to Royal Durban defaults. */
+  branding?: Branding;
 };
 
 export type Player = {

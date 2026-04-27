@@ -2,6 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Default palette — Royal Durban GC. Overridden at runtime by src/theme.ts
+   from course.json -> branding.colors. RGB triplets so Tailwind can apply
+   alpha (bg-rd-navy/20, text-rd-ink/60, etc.). */
+:root {
+  --rd-navy: 11 30 63;
+  --rd-navy-deep: 6 20 45;
+  --rd-gold: 184 137 58;
+  --rd-gold-light: 212 168 89;
+  --rd-cream: 246 242 234;
+  --rd-ink: 31 41 55;
+}
+
 @layer base {
   body {
     @apply font-sans antialiased;

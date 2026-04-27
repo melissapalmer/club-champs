@@ -1,12 +1,7 @@
 import { useMemo } from 'react';
 import type { AppData } from '../data';
 import { fullName, num } from '../format';
-import {
-  DEFAULT_TOP_N,
-  PRIZE_CATEGORIES,
-  PRIZE_LABELS,
-  PRIZE_PICK,
-} from '../prizes';
+import { defaultAwards, PRIZE_LABELS, PRIZE_PICK } from '../prizes';
 import {
   buildPlayerLines,
   linesByDivision,
@@ -36,27 +31,27 @@ function DivisionResults({
   division: DivisionConfig;
   lines: PlayerLine[];
 }) {
-  const topN = division.prizes?.topN ?? DEFAULT_TOP_N;
-  const categories = division.prizes?.categories ?? PRIZE_CATEGORIES;
+  const awards = division.prizes?.awards ?? defaultAwards();
 
   return (
     <div className="rd-card p-4">
       <div className="flex items-baseline justify-between mb-3 gap-3">
         <h2 className="text-xl text-rd-navy">{division.name} Division</h2>
         <span className="text-xs text-rd-ink/60">
-          Top {topN} · {categories.length} {categories.length === 1 ? 'prize' : 'prizes'}
+          {awards.length} {awards.length === 1 ? 'prize' : 'prizes'}
         </span>
       </div>
-      {categories.length === 0 ? (
+      {awards.length === 0 ? (
         <p className="text-sm text-rd-ink/50">No prizes configured for this division.</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {categories.map((cat) => {
-            const winners = podium(lines, PRIZE_PICK[cat], topN);
+          {awards.map(({ category, topN }) => {
+            const winners = podium(lines, PRIZE_PICK[category], topN);
             return (
-              <div key={cat}>
-                <h3 className="text-sm uppercase tracking-wide text-rd-gold mb-1 font-sans font-semibold">
-                  {PRIZE_LABELS[cat]}
+              <div key={category}>
+                <h3 className="text-sm uppercase tracking-wide text-rd-gold mb-1 font-sans font-semibold flex items-baseline justify-between">
+                  <span>{PRIZE_LABELS[category]}</span>
+                  <span className="text-[11px] text-rd-ink/50 font-normal">Top {topN}</span>
                 </h3>
                 {winners.length === 0 ? (
                   <p className="text-sm text-rd-ink/50">—</p>
@@ -74,7 +69,7 @@ function DivisionResults({
                           {fullName(w.line.player)}
                         </span>
                         <span className="font-medium tabular-nums">
-                          {num(w.value, cat === 'eclectic' ? 1 : 0)}
+                          {num(w.value, category === 'eclectic' ? 1 : 0)}
                         </span>
                       </li>
                     ))}

@@ -4,6 +4,17 @@
   "gender": "women",
   "maxHandicap": 36,
   "eclecticHandicapPct": 25,
+  "branding": {
+    "logoUrl": "royal-durban-logo.webp",
+    "colors": {
+      "navy": "#0B1E3F",
+      "navyDeep": "#06142D",
+      "gold": "#B8893A",
+      "goldLight": "#D4A859",
+      "cream": "#F6F2EA",
+      "ink": "#1F2937"
+    }
+  },
   "tees": {
     "yellow": {
       "par": 72,
