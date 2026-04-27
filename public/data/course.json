@@ -18,23 +18,47 @@
   "tees": {
     "yellow": {
       "par": 72,
-      "women": { "cr": 72.7, "slope": 124 },
-      "men":   { "cr": 79.0, "slope": 136 }
+      "women": {
+        "cr": 72.7,
+        "slope": 124
+      },
+      "men": {
+        "cr": 79,
+        "slope": 136
+      }
     },
     "white": {
       "par": 72,
-      "women": { "cr": 77.7, "slope": 137 },
-      "men":   { "cr": 71.6, "slope": 119 }
+      "women": {
+        "cr": 77.7,
+        "slope": 137
+      },
+      "men": {
+        "cr": 71.6,
+        "slope": 119
+      }
     },
     "blue": {
       "par": 72,
-      "women": { "cr": 75.0, "slope": 130 },
-      "men":   { "cr": 68.7, "slope": 116 }
+      "women": {
+        "cr": 75,
+        "slope": 130
+      },
+      "men": {
+        "cr": 68.7,
+        "slope": 116
+      }
     },
     "red": {
       "par": 72,
-      "women": { "cr": 72.7, "slope": 123 },
-      "men":   { "cr": 67.0, "slope": 111 }
+      "women": {
+        "cr": 72.7,
+        "slope": 123
+      },
+      "men": {
+        "cr": 67,
+        "slope": 111
+      }
     }
   },
   "divisions": [
@@ -53,7 +77,39 @@
       "tee": "red",
       "hiMin": 6.6,
       "hiMax": 15.3,
-      "handicapPct": 100
+      "handicapPct": 100,
+      "prizes": {
+        "awards": [
+          {
+            "category": "satGross",
+            "topN": 2
+          },
+          {
+            "category": "satNet",
+            "topN": 2
+          },
+          {
+            "category": "sunGross",
+            "topN": 2
+          },
+          {
+            "category": "sunNet",
+            "topN": 2
+          },
+          {
+            "category": "overallGross",
+            "topN": 2
+          },
+          {
+            "category": "overallNet",
+            "topN": 2
+          },
+          {
+            "category": "eclectic",
+            "topN": 1
+          }
+        ]
+      }
     },
     {
       "code": "C",
@@ -61,27 +117,131 @@
       "tee": "red",
       "hiMin": 15.4,
       "hiMax": 10001,
-      "handicapPct": 100
+      "handicapPct": 100,
+      "prizes": {
+        "awards": [
+          {
+            "category": "satGross",
+            "topN": 2
+          },
+          {
+            "category": "satNet",
+            "topN": 2
+          },
+          {
+            "category": "sunGross",
+            "topN": 2
+          },
+          {
+            "category": "sunNet",
+            "topN": 2
+          },
+          {
+            "category": "overallGross",
+            "topN": 2
+          },
+          {
+            "category": "overallNet",
+            "topN": 2
+          },
+          {
+            "category": "eclectic",
+            "topN": 1
+          }
+        ]
+      }
     }
   ],
   "holes": [
-    { "par": 4, "siWomen": 8,  "siMen": 8 },
-    { "par": 3, "siWomen": 16, "siMen": 16 },
-    { "par": 4, "siWomen": 12, "siMen": 10 },
-    { "par": 4, "siWomen": 4,  "siMen": 4 },
-    { "par": 5, "siWomen": 6,  "siMen": 14 },
-    { "par": 3, "siWomen": 18, "siMen": 12 },
-    { "par": 4, "siWomen": 2,  "siMen": 2 },
-    { "par": 4, "siWomen": 10, "siMen": 6 },
-    { "par": 4, "siWomen": 14, "siMen": 18 },
-    { "par": 5, "siWomen": 3,  "siMen": 5 },
-    { "par": 4, "siWomen": 13, "siMen": 13 },
-    { "par": 3, "siWomen": 17, "siMen": 11 },
-    { "par": 5, "siWomen": 9,  "siMen": 17 },
-    { "par": 3, "siWomen": 15, "siMen": 9 },
-    { "par": 4, "siWomen": 1,  "siMen": 1 },
-    { "par": 4, "siWomen": 11, "siMen": 7 },
-    { "par": 4, "siWomen": 5,  "siMen": 3 },
-    { "par": 5, "siWomen": 7,  "siMen": 15 }
+    {
+      "par": 4,
+      "siWomen": 8,
+      "siMen": 8
+    },
+    {
+      "par": 3,
+      "siWomen": 16,
+      "siMen": 16
+    },
+    {
+      "par": 4,
+      "siWomen": 12,
+      "siMen": 10
+    },
+    {
+      "par": 4,
+      "siWomen": 4,
+      "siMen": 4
+    },
+    {
+      "par": 5,
+      "siWomen": 6,
+      "siMen": 14
+    },
+    {
+      "par": 3,
+      "siWomen": 18,
+      "siMen": 12
+    },
+    {
+      "par": 4,
+      "siWomen": 2,
+      "siMen": 2
+    },
+    {
+      "par": 4,
+      "siWomen": 10,
+      "siMen": 6
+    },
+    {
+      "par": 4,
+      "siWomen": 14,
+      "siMen": 18
+    },
+    {
+      "par": 5,
+      "siWomen": 3,
+      "siMen": 5
+    },
+    {
+      "par": 4,
+      "siWomen": 13,
+      "siMen": 13
+    },
+    {
+      "par": 3,
+      "siWomen": 17,
+      "siMen": 11
+    },
+    {
+      "par": 5,
+      "siWomen": 9,
+      "siMen": 17
+    },
+    {
+      "par": 3,
+      "siWomen": 15,
+      "siMen": 9
+    },
+    {
+      "par": 4,
+      "siWomen": 1,
+      "siMen": 1
+    },
+    {
+      "par": 4,
+      "siWomen": 11,
+      "siMen": 7
+    },
+    {
+      "par": 4,
+      "siWomen": 5,
+      "siMen": 3
+    },
+    {
+      "par": 5,
+      "siWomen": 7,
+      "siMen": 15
+    }
   ]
 }
