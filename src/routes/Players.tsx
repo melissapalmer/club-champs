@@ -36,13 +36,13 @@ function DivisionGroup({
       <div className="px-4 pt-3 pb-2 border-b border-rd-cream flex items-baseline justify-between">
         <h2 className="text-xl text-rd-navy font-serif">{division.name} Division</h2>
         <span className="text-sm text-rd-ink/60">
-          {rows.length} {rows.length === 1 ? 'entrant' : 'entrants'}
+          {rows.length} {rows.length === 1 ? 'player' : 'players'}
           {' · '}
           {division.hiMin > -100 ? `HI ${division.hiMin}–${division.hiMax}` : `HI ≤ ${division.hiMax}`}
         </span>
       </div>
       {rows.length === 0 ? (
-        <p className="px-4 py-4 text-sm text-rd-ink/50">No entrants in this division.</p>
+        <p className="px-4 py-4 text-sm text-rd-ink/50">No players in this division.</p>
       ) : (
         <table className="rd-table">
           <thead>
@@ -58,7 +58,10 @@ function DivisionGroup({
           <tbody>
             {rows
               .slice()
-              .sort((a, b) => a.player.hi - b.player.hi)
+              .sort((a, b) => {
+                const la = a.player.lastName.localeCompare(b.player.lastName);
+                return la !== 0 ? la : a.player.firstName.localeCompare(b.player.firstName);
+              })
               .map(({ player, hc, ph }) => (
                 <tr key={player.saId}>
                   <td>
@@ -99,7 +102,7 @@ export function Players({ data }: { data: AppData }) {
 
   return (
     <section>
-      <h1 className="text-2xl text-rd-navy mb-1">Entrants</h1>
+      <h1 className="text-2xl text-rd-navy mb-1">Players</h1>
       <p className="text-sm text-rd-ink/60 mb-4">
         {players.length} entered · grouped by division (derived from HI, overrides honoured).
       </p>
