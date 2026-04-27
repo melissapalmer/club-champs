@@ -16,7 +16,7 @@ export function ScoreSymbol({ score, par }: { score: number | null | undefined; 
 
   // Inner element shows the score; outer wrapper provides the optional frame.
   const baseInner =
-    'inline-flex items-center justify-center w-7 h-7 leading-none tabular-nums';
+    'inline-flex items-center justify-center w-6 h-6 leading-none tabular-nums';
   let inner = baseInner;
   let outer = 'inline-flex items-center justify-center';
   let frame = false;
@@ -41,10 +41,11 @@ export function ScoreSymbol({ score, par }: { score: number | null | undefined; 
   }
 
   if (frame) {
-    // Outer ring slightly bigger than the inner shape; matches the "with frame"
-    // convention seen on traditional scorecards.
+    // Outer ring just barely bigger than the inner shape; matches the "with frame"
+    // convention seen on traditional scorecards. Kept tight so 18 cells fit on
+    // narrower viewports.
     const isCircle = diff < 0;
-    outer += ` p-0.5 ${isCircle ? 'rounded-full' : ''} border border-rd-navy`;
+    outer += ` p-px ${isCircle ? 'rounded-full' : ''} border border-rd-navy`;
   }
 
   return (

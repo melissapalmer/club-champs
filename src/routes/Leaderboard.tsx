@@ -82,15 +82,15 @@ function HoleByHoleCard({ line, course }: { line: PlayerLine; course: Course }) 
     net: number | null;
   }) => (
     <tr>
-      <th className="text-left whitespace-nowrap pr-3 font-medium text-rd-ink">{label}</th>
+      <th className="text-left whitespace-nowrap pr-2 font-medium text-rd-ink">{label}</th>
       {dayHoles.slice(0, 9).map((h, i) => (
-        <td key={`f${i}`} className="text-center px-1 py-1.5">
+        <td key={`f${i}`} className="text-center px-0.5 py-1">
           <ScoreSymbol score={h} par={par(i)} />
         </td>
       ))}
       <td className="text-center font-semibold tabular-nums bg-rd-navy/5">{cell(out)}</td>
       {dayHoles.slice(9, 18).map((h, i) => (
-        <td key={`b${i}`} className="text-center px-1 py-1.5">
+        <td key={`b${i}`} className="text-center px-0.5 py-1">
           <ScoreSymbol score={h} par={par(i + 9)} />
         </td>
       ))}
@@ -102,16 +102,16 @@ function HoleByHoleCard({ line, course }: { line: PlayerLine; course: Course }) 
 
   return (
     <div className="bg-rd-cream/40 -mx-3 -my-2 px-3 py-3 overflow-x-auto">
-      <table className="text-xs sm:text-sm border-collapse min-w-full">
+      <table className="text-xs border-collapse w-full">
         <thead>
           <tr className="text-rd-ink/60">
-            <th className="text-left pr-3"></th>
+            <th className="text-left pr-2"></th>
             {HOLE_NUMS.slice(0, 9).map((h) => (
-              <th key={h} className="text-center font-medium px-1">{h}</th>
+              <th key={h} className="text-center font-medium px-0.5">{h}</th>
             ))}
             <th className="text-center font-medium px-1 bg-rd-navy/5">Out</th>
             {HOLE_NUMS.slice(9).map((h) => (
-              <th key={h} className="text-center font-medium px-1">{h}</th>
+              <th key={h} className="text-center font-medium px-0.5">{h}</th>
             ))}
             <th className="text-center font-medium px-1 bg-rd-navy/5">In</th>
             <th className="text-center font-medium px-1">Gross</th>
@@ -120,15 +120,15 @@ function HoleByHoleCard({ line, course }: { line: PlayerLine; course: Course }) 
         </thead>
         <tbody className="[&_td]:border-t [&_td]:border-rd-cream">
           <tr className="text-rd-ink/70">
-            <th className="text-left pr-3 font-normal">Par</th>
+            <th className="text-left pr-2 font-normal">Par</th>
             {holes.slice(0, 9).map((h, i) => (
-              <td key={`pf${i}`} className="text-center tabular-nums px-1 py-1">
+              <td key={`pf${i}`} className="text-center tabular-nums px-0.5 py-0.5">
                 {h?.par ?? '·'}
               </td>
             ))}
             <td className="text-center font-medium tabular-nums bg-rd-navy/5">{frontPar || '·'}</td>
             {holes.slice(9, 18).map((h, i) => (
-              <td key={`pb${i}`} className="text-center tabular-nums px-1 py-1">
+              <td key={`pb${i}`} className="text-center tabular-nums px-0.5 py-0.5">
                 {h?.par ?? '·'}
               </td>
             ))}
