@@ -2,6 +2,7 @@ import { Fragment, useMemo, useState } from 'react';
 import { useIsAdmin } from '../admin';
 import { DivisionTabs } from '../components/DivisionTabs';
 import { ScoreEditModal } from '../components/ScoreEditModal';
+import { ScoreSymbol } from '../components/ScoreSymbol';
 import type { AppData } from '../data';
 import { fullName, num } from '../format';
 import {
@@ -12,7 +13,7 @@ import {
   visibleDivisions,
   type PlayerLine,
 } from '../scoring/engine';
-import type { Player } from '../types';
+import type { Course, Hole, Player } from '../types';
 
 function PencilIcon() {
   return (
@@ -53,34 +54,44 @@ function Chevron({ open }: { open: boolean }) {
 
 const HOLE_NUMS = Array.from({ length: 18 }, (_, i) => i + 1);
 
-function HoleByHoleCard({ line }: { line: PlayerLine }) {
+function HoleByHoleCard({ line, course }: { line: PlayerLine; course: Course }) {
   const sat = dayTotals(line.sat.holes);
   const sun = dayTotals(line.sun.holes);
+  const holes: Hole[] = course.holes ?? [];
+  const par = (i: number) => holes[i]?.par ?? 4;
   const cell = (v: number | null | undefined) => (v == null ? '·' : v);
 
-  const Row = ({
+  const frontPar = holes.slice(0, 9).reduce((a, h) => a + (h?.par ?? 0), 0);
+  const backPar = holes.slice(9, 18).reduce((a, h) => a + (h?.par ?? 0), 0);
+  const totalPar = frontPar + backPar;
+
+  const ScoreRow = ({
     label,
-    holes,
+    dayHoles,
     out,
     in: in_,
     gross,
     net,
   }: {
     label: string;
-    holes: (number | null)[];
+    dayHoles: (number | null)[];
     out: number | null;
     in: number | null;
     gross: number | null;
     net: number | null;
   }) => (
     <tr>
-      <th className="text-left whitespace-nowrap pr-3">{label}</th>
-      {holes.slice(0, 9).map((h, i) => (
-        <td key={`f${i}`} className="text-center tabular-nums">{cell(h)}</td>
+      <th className="text-left whitespace-nowrap pr-3 font-medium text-rd-ink">{label}</th>
+      {dayHoles.slice(0, 9).map((h, i) => (
+        <td key={`f${i}`} className="text-center px-1 py-1.5">
+          <ScoreSymbol score={h} par={par(i)} />
+        </td>
       ))}
       <td className="text-center font-semibold tabular-nums bg-rd-navy/5">{cell(out)}</td>
-      {holes.slice(9, 18).map((h, i) => (
-        <td key={`b${i}`} className="text-center tabular-nums">{cell(h)}</td>
+      {dayHoles.slice(9, 18).map((h, i) => (
+        <td key={`b${i}`} className="text-center px-1 py-1.5">
+          <ScoreSymbol score={h} par={par(i + 9)} />
+        </td>
       ))}
       <td className="text-center font-semibold tabular-nums bg-rd-navy/5">{cell(in_)}</td>
       <td className="text-center font-semibold tabular-nums">{cell(gross)}</td>
@@ -106,18 +117,52 @@ function HoleByHoleCard({ line }: { line: PlayerLine }) {
             <th className="text-center font-medium px-1">Net</th>
           </tr>
         </thead>
-        <tbody className="[&_td]:py-1 [&_th]:py-1 [&_td]:border-t [&_td]:border-rd-cream">
-          <Row
-            label="Sat (Day 1)"
-            holes={line.sat.holes}
+        <tbody className="[&_td]:border-t [&_td]:border-rd-cream">
+          <tr className="text-rd-ink/70">
+            <th className="text-left pr-3 font-normal">Par</th>
+            {holes.slice(0, 9).map((h, i) => (
+              <td key={`pf${i}`} className="text-center tabular-nums px-1 py-1">
+                {h?.par ?? '·'}
+              </td>
+            ))}
+            <td className="text-center font-medium tabular-nums bg-rd-navy/5">{frontPar || '·'}</td>
+            {holes.slice(9, 18).map((h, i) => (
+              <td key={`pb${i}`} className="text-center tabular-nums px-1 py-1">
+                {h?.par ?? '·'}
+              </td>
+            ))}
+            <td className="text-center font-medium tabular-nums bg-rd-navy/5">{backPar || '·'}</td>
+            <td className="text-center font-medium tabular-nums">{totalPar || '·'}</td>
+            <td></td>
+          </tr>
+          <tr className="text-rd-ink/50 text-[11px]">
+            <th className="text-left pr-3 font-normal">SI</th>
+            {holes.slice(0, 9).map((h, i) => (
+              <td key={`sf${i}`} className="text-center tabular-nums px-1 py-1">
+                {h?.si ?? '·'}
+              </td>
+            ))}
+            <td className="bg-rd-navy/5"></td>
+            {holes.slice(9, 18).map((h, i) => (
+              <td key={`sb${i}`} className="text-center tabular-nums px-1 py-1">
+                {h?.si ?? '·'}
+              </td>
+            ))}
+            <td className="bg-rd-navy/5"></td>
+            <td></td>
+            <td></td>
+          </tr>
+          <ScoreRow
+            label="Sat"
+            dayHoles={line.sat.holes}
             out={sat.out}
             in={sat.in}
             gross={line.sat.gross}
             net={line.sat.net}
           />
-          <Row
-            label="Sun (Day 2)"
-            holes={line.sun.holes}
+          <ScoreRow
+            label="Sun"
+            dayHoles={line.sun.holes}
             out={sun.out}
             in={sun.in}
             gross={line.sun.gross}
@@ -238,7 +283,7 @@ export function Leaderboard({ data }: { data: AppData }) {
                   {isExpanded && (
                     <tr>
                       <td colSpan={colCount + 1} className="p-0">
-                        <HoleByHoleCard line={line} />
+                        <HoleByHoleCard line={line} course={course} />
                       </td>
                     </tr>
                   )}

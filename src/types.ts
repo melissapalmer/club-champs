@@ -1,5 +1,12 @@
 export type Tee = { par: number; cr: number; slope: number };
 
+export type Hole = {
+  /** Par for this hole (3, 4 or 5). */
+  par: number;
+  /** Stroke index — handicap-stroke ranking, 1 = hardest hole through 18 = easiest. */
+  si: number;
+};
+
 export type DivisionConfig = {
   code: 'A' | 'B' | 'C';
   name: string;
@@ -18,6 +25,8 @@ export type Course = {
   eclecticHandicapPct: number;
   tees: Record<'yellow' | 'white' | 'blue' | 'red', Tee>;
   divisions: DivisionConfig[];
+  /** Per-hole layout (length 18). Used for scorecard symbols (par-relative) and SI display. */
+  holes: Hole[];
 };
 
 export type Player = {

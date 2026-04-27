@@ -110,6 +110,16 @@ export function Config({ data }: { data: AppData }) {
     }));
   };
 
+  const updateHole = (idx: number, field: 'par' | 'si', v: number) => {
+    setDraft((d) => {
+      const holes = [...(d.holes ?? Array.from({ length: 18 }, () => ({ par: 4, si: 0 })))];
+      holes[idx] = { ...holes[idx], [field]: v };
+      return { ...d, holes };
+    });
+  };
+
+  const totalHolePar = (draft.holes ?? []).reduce((a, h) => a + (h?.par ?? 0), 0);
+
   const onSave = async () => {
     const json = JSON.stringify(draft, null, 2) + '\n';
     if (!gh) {
@@ -230,6 +240,51 @@ export function Config({ data }: { data: AppData }) {
                         value={t.slope}
                         onChange={(v) => updateTee(k, 'slope', v)}
                       />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="rd-card p-4">
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="text-lg text-rd-navy font-serif">Holes</h2>
+          <span className="text-sm text-rd-ink/60">
+            Total par: <span className="font-semibold">{totalHolePar || '—'}</span>
+          </span>
+        </div>
+        <p className="text-xs text-rd-ink/60 mb-2">
+          Per-hole par drives scorecard symbols (birdie/par/bogey…) on the Scores tab.
+          Stroke index (SI) is the handicap-stroke ranking, 1 = hardest.
+        </p>
+        <div className="overflow-x-auto">
+          <table className="rd-table table-fixed">
+            <colgroup>
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '43%' }} />
+              <col style={{ width: '43%' }} />
+            </colgroup>
+            <thead>
+              <tr>
+                <th>Hole</th>
+                <th>Par</th>
+                <th>SI</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 18 }, (_, i) => {
+                const h = draft.holes?.[i] ?? { par: 4, si: 0 };
+                return (
+                  <tr key={i}>
+                    <td className="font-medium">{i + 1}</td>
+                    <td>
+                      <NumField label="" value={h.par} onChange={(v) => updateHole(i, 'par', v)} />
+                    </td>
+                    <td>
+                      <NumField label="" value={h.si} onChange={(v) => updateHole(i, 'si', v)} />
                     </td>
                   </tr>
                 );
