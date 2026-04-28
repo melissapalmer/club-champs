@@ -1,28 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useIsAdmin } from '../admin';
-import { GitHubSettingsDialog } from '../components/GitHubSettingsDialog';
 import { PlayerEditModal } from '../components/PlayerEditModal';
-import { serialisePlayersCsv } from '../csv/players';
+import { SheetSettingsDialog } from '../components/SheetSettingsDialog';
 import type { AppData } from '../data';
 import { fullName } from '../format';
-import {
-  commitFile,
-  loadGitHubSettings,
-  saveGitHubSettings,
-  type GitHubSettings,
-} from '../github';
 import { divisionFor } from '../scoring/engine';
+import { removePlayer, upsertPlayer } from '../sheets/playersAdapter';
+import { loadSheetsSettings, type SheetsSettings } from '../sheets/settings';
 import type { Player } from '../types';
-
-function downloadCsv(filename: string, content: string) {
-  const blob = new Blob([content], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
 
 type Mode = { kind: 'idle' } | { kind: 'add' } | { kind: 'edit'; player: Player };
 
@@ -36,7 +21,7 @@ export function ManagePlayers({ data }: { data: AppData }) {
     kind: 'idle' | 'ok' | 'err';
     msg?: string;
   }>({ kind: 'idle' });
-  const [gh, setGh] = useState<GitHubSettings | null>(loadGitHubSettings());
+  const [cfg, setCfg] = useState<SheetsSettings | null>(loadSheetsSettings());
   const [showSettings, setShowSettings] = useState(false);
 
   const sorted = useMemo(
@@ -57,50 +42,52 @@ export function ManagePlayers({ data }: { data: AppData }) {
     );
   }
 
-  const commit = async (next: Player[], message: string) => {
-    const csv = serialisePlayersCsv(next);
-    if (!gh) {
-      downloadCsv('players.csv', csv);
+  const requireCfg = (): SheetsSettings | null => {
+    const c = loadSheetsSettings();
+    if (!c) {
       setStatus({
-        kind: 'ok',
-        msg: 'No GitHub token configured. Downloaded players.csv — commit it manually.',
+        kind: 'err',
+        msg: 'No Sheet configured. Open Settings and set Sheet ID + Apps Script URL.',
       });
-      return;
+      return null;
     }
+    return c;
+  };
+
+  const onSavePlayer = async (player: Player) => {
+    const c = requireCfg();
+    if (!c) return;
+    setMode({ kind: 'idle' });
     setBusy(true);
     setStatus({ kind: 'idle' });
     try {
-      await commitFile(gh, 'public/data/players.csv', csv, message);
-      setStatus({ kind: 'ok', msg: 'Committed. Pages will rebuild in ~30s.' });
+      await upsertPlayer(c, player);
+      setStatus({ kind: 'ok', msg: `Saved ${fullName(player)}.` });
       await data.reload();
     } catch (e) {
-      setStatus({
-        kind: 'err',
-        msg: e instanceof Error ? e.message : String(e),
-      });
+      setStatus({ kind: 'err', msg: e instanceof Error ? e.message : String(e) });
     } finally {
       setBusy(false);
     }
   };
 
-  const onSavePlayer = async (player: Player) => {
-    const isEdit = mode.kind === 'edit';
-    const next = isEdit
-      ? players.map((p) => (p.saId === player.saId ? player : p))
-      : [...players, player];
-    setMode({ kind: 'idle' });
-    await commit(
-      next,
-      `${isEdit ? 'Update' : 'Add'} player: ${fullName(player)}`
-    );
-  };
-
   const onConfirmDelete = async () => {
     if (!pendingDelete) return;
+    const c = requireCfg();
+    if (!c) return;
     const target = pendingDelete;
-    const next = players.filter((p) => p.saId !== target.saId);
     setPendingDelete(null);
-    await commit(next, `Remove player: ${fullName(target)}`);
+    setBusy(true);
+    setStatus({ kind: 'idle' });
+    try {
+      await removePlayer(c, target.saId);
+      setStatus({ kind: 'ok', msg: `Removed ${fullName(target)}.` });
+      await data.reload();
+    } catch (e) {
+      setStatus({ kind: 'err', msg: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBusy(false);
+    }
   };
 
   const existingSaIds = new Set(players.map((p) => p.saId));
@@ -111,8 +98,8 @@ export function ManagePlayers({ data }: { data: AppData }) {
         <div>
           <h1 className="text-2xl text-rd-navy mb-1">Manage Players</h1>
           <p className="text-sm text-rd-ink/60">
-            Add, edit, or remove players. Saving commits{' '}
-            <code>public/data/players.csv</code> via the configured GitHub token.
+            Add, edit, or remove players. Saving writes to the Players tab in the
+            configured Google Sheet.
           </p>
         </div>
         <div className="flex flex-col items-end gap-1 shrink-0">
@@ -120,7 +107,7 @@ export function ManagePlayers({ data }: { data: AppData }) {
             className="text-sm text-rd-navy hover:underline"
             onClick={() => setShowSettings(true)}
           >
-            {gh ? 'GitHub: configured' : 'Configure GitHub token'}
+            {cfg ? 'Sheet: configured' : 'Configure Google Sheet'}
           </button>
           <button
             className="px-3 py-1.5 bg-rd-navy text-white rounded text-sm font-medium"
@@ -221,9 +208,8 @@ export function ManagePlayers({ data }: { data: AppData }) {
               Remove <strong>{fullName(pendingDelete)}</strong> from the roster?
             </p>
             <p className="text-xs text-rd-ink/50 mb-4">
-              Any scores already entered for this player stay in{' '}
-              <code>scores.csv</code> (harmless — they just won't appear on the
-              leaderboard).
+              Any scores already entered for this player stay in the Scores tab
+              (harmless — they just won't appear on the leaderboard).
             </p>
             <div className="flex justify-end gap-2">
               <button
@@ -245,15 +231,14 @@ export function ManagePlayers({ data }: { data: AppData }) {
       )}
 
       {showSettings && (
-        <GitHubSettingsDialog
-          initial={gh}
-          onSave={(s) => {
-            saveGitHubSettings(s);
-            setGh(s);
+        <SheetSettingsDialog
+          initial={cfg}
+          onSaved={(s) => {
+            setCfg(s);
             setShowSettings(false);
           }}
           onCancel={() => {
-            setGh(loadGitHubSettings());
+            setCfg(loadSheetsSettings());
             setShowSettings(false);
           }}
         />

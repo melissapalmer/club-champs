@@ -1,9 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Route, Routes, useSearchParams } from 'react-router-dom';
-import { ACCESS_KEY, setAdmin } from './admin';
+import { ACCESS_KEY, setAdmin, useIsAdmin } from './admin';
 import { Layout } from './components/Layout';
+import { SheetSettingsDialog } from './components/SheetSettingsDialog';
 import { useAppData } from './data';
-import { useApplyBranding } from './theme';
 import { Config } from './routes/Config';
 import { Eclectic } from './routes/Eclectic';
 import { Enter } from './routes/Enter';
@@ -11,6 +11,8 @@ import { Leaderboard } from './routes/Leaderboard';
 import { ManagePlayers } from './routes/ManagePlayers';
 import { Players } from './routes/Players';
 import { Results } from './routes/Results';
+import { loadSheetsSettings } from './sheets/settings';
+import { useApplyBranding } from './theme';
 
 function useAccessKeyParam(): void {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -49,6 +51,8 @@ export function App() {
   const { data, error } = useAppData();
   useApplyBranding(data?.course ?? null);
   useAccessKeyParam();
+  const admin = useIsAdmin();
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     if (!data?.course) return;
@@ -56,41 +60,37 @@ export function App() {
     document.title = club && event ? `${club} — ${event}` : (event ?? club ?? 'Club Champs');
   }, [data?.course]);
 
+  // Block-level state shared by every route: still loading, or no data
+  // because the Sheet isn't configured yet. We render the layout shell so
+  // the navy header + nav still appear; the inner area carries the message.
+  const blocker = (() => {
+    if (data) return null;
+    if (error) return <DataError message={error} admin={admin} onConfigure={() => setShowSettings(true)} />;
+    return <Loading />;
+  })();
+
   return (
-    <Routes>
-      <Route element={<Layout course={data?.course ?? null} />}>
-        <Route
-          path="/"
-          element={
-            error ? (
-              <ErrorView message={error} />
-            ) : data ? (
-              <Leaderboard data={data} />
-            ) : (
-              <Loading />
-            )
-          }
+    <>
+      <Routes>
+        <Route element={<Layout course={data?.course ?? null} />}>
+          <Route path="/" element={blocker ?? <Leaderboard data={data!} />} />
+          <Route path="/eclectic" element={blocker ?? <Eclectic data={data!} />} />
+          <Route path="/results" element={blocker ?? <Results data={data!} />} />
+          <Route path="/players" element={blocker ?? <Players data={data!} />} />
+          <Route path="/enter" element={blocker ?? <Enter data={data!} />} />
+          <Route path="/manage-players" element={blocker ?? <ManagePlayers data={data!} />} />
+          <Route path="/config" element={blocker ?? <Config data={data!} />} />
+        </Route>
+      </Routes>
+
+      {showSettings && (
+        <SheetSettingsDialog
+          initial={loadSheetsSettings()}
+          onSaved={() => setShowSettings(false)}
+          onCancel={() => setShowSettings(false)}
         />
-        <Route
-          path="/eclectic"
-          element={data ? <Eclectic data={data} /> : <Loading />}
-        />
-        <Route
-          path="/results"
-          element={data ? <Results data={data} /> : <Loading />}
-        />
-        <Route
-          path="/players"
-          element={data ? <Players data={data} /> : <Loading />}
-        />
-        <Route path="/enter" element={data ? <Enter data={data} /> : <Loading />} />
-        <Route
-          path="/manage-players"
-          element={data ? <ManagePlayers data={data} /> : <Loading />}
-        />
-        <Route path="/config" element={data ? <Config data={data} /> : <Loading />} />
-      </Route>
-    </Routes>
+      )}
+    </>
   );
 }
 
@@ -98,11 +98,30 @@ function Loading() {
   return <p className="text-rd-ink/60">Loading…</p>;
 }
 
-function ErrorView({ message }: { message: string }) {
+function DataError({
+  message,
+  admin,
+  onConfigure,
+}: {
+  message: string;
+  admin: boolean;
+  onConfigure: () => void;
+}) {
+  const looksUnconfigured = /no google sheet configured/i.test(message);
   return (
     <div className="rd-card p-4 border border-red-200 bg-red-50">
-      <h2 className="text-red-800 font-semibold mb-2">Couldn’t load data</h2>
-      <pre className="text-sm text-red-900 whitespace-pre-wrap">{message}</pre>
+      <h2 className="text-red-800 font-semibold mb-2">
+        {looksUnconfigured ? 'Site not configured yet' : 'Couldn’t load data'}
+      </h2>
+      <p className="text-sm text-red-900 whitespace-pre-wrap mb-3">{message}</p>
+      {admin && (
+        <button
+          className="px-3 py-1.5 text-sm rounded bg-rd-navy text-white"
+          onClick={onConfigure}
+        >
+          Configure Google Sheet
+        </button>
+      )}
     </div>
   );
 }

@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { serialiseScoresCsv, upsertScore } from '../csv/scores';
 import type { AppData } from '../data';
 import { fullName } from '../format';
-import { commitFile, loadGitHubSettings } from '../github';
 import {
   courseHandicap,
   divisionFor,
   playingHandicap,
   teeRatings,
 } from '../scoring/engine';
+import { upsertScore } from '../sheets/scoresAdapter';
+import { loadSheetsSettings } from '../sheets/settings';
 import type { DayScore, Player } from '../types';
 
 const HOLE_NUMS = Array.from({ length: 18 }, (_, i) => i + 1);
@@ -22,16 +22,6 @@ function toIntOrNull(v: string): number | null {
   if (!t) return null;
   const n = Number(t);
   return Number.isInteger(n) && n > 0 ? n : null;
-}
-
-function downloadCsv(filename: string, content: string) {
-  const blob = new Blob([content], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
 }
 
 export function ScoreEntryPanel({
@@ -123,32 +113,21 @@ export function ScoreEntryPanel({
 
   const onSave = async () => {
     if (!player) return;
-    const updated: DayScore = { saId: player.saId, day, holes };
-    const nextScores = upsertScore(scores, updated);
-    const csv = serialiseScoresCsv(nextScores);
-
-    const gh = loadGitHubSettings();
-    if (!gh) {
-      downloadCsv('scores.csv', csv);
+    const cfg = loadSheetsSettings();
+    if (!cfg) {
       setStatus({
-        kind: 'ok',
-        msg: 'No GitHub token configured. Downloaded scores.csv — commit it manually.',
+        kind: 'err',
+        msg: 'No Sheet configured. Open the Settings dialog to set Sheet ID + Apps Script URL.',
       });
-      onSaved?.();
       return;
     }
-
-    setStatus({ kind: 'busy', msg: 'Committing…' });
+    const updated: DayScore = { saId: player.saId, day, holes };
+    setStatus({ kind: 'busy', msg: 'Saving…' });
     try {
-      await commitFile(
-        gh,
-        'public/data/scores.csv',
-        csv,
-        `Score: ${fullName(player)} day ${day}`
-      );
+      await upsertScore(cfg, updated);
       setStatus({
         kind: 'ok',
-        msg: 'Committed. GitHub Pages will rebuild in ~30s.',
+        msg: 'Saved. Spectators see the update on the next refresh (~15 s).',
       });
       await data.reload();
       onSaved?.();

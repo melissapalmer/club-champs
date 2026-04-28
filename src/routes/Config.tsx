@@ -1,19 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useIsAdmin } from '../admin';
-import { GitHubSettingsDialog } from '../components/GitHubSettingsDialog';
+import { SheetSettingsDialog } from '../components/SheetSettingsDialog';
 import type { AppData } from '../data';
-import {
-  commitFile,
-  loadGitHubSettings,
-  saveGitHubSettings,
-  type GitHubSettings,
-} from '../github';
 import {
   DEFAULT_TOP_N,
   defaultAwards,
   PRIZE_CATEGORIES,
   PRIZE_LABELS,
 } from '../prizes';
+import { saveCourse } from '../sheets/courseAdapter';
+import { loadSheetsSettings, type SheetsSettings } from '../sheets/settings';
 import { resolveAssetUrl } from '../theme';
 import type {
   Branding,
@@ -36,16 +32,6 @@ const COLOR_KEYS: { key: keyof BrandingColors; label: string; fallback: string }
 ];
 
 const TEE_KEYS = ['yellow', 'white', 'blue', 'red'] as const;
-
-function downloadJson(filename: string, content: string) {
-  const blob = new Blob([content], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
 
 function NumField({
   label,
@@ -275,7 +261,7 @@ export function Config({ data }: { data: AppData }) {
   const [status, setStatus] = useState<{ kind: 'idle' | 'busy' | 'ok' | 'err'; msg?: string }>({
     kind: 'idle',
   });
-  const [gh, setGh] = useState<GitHubSettings | null>(loadGitHubSettings());
+  const [cfg, setCfg] = useState<SheetsSettings | null>(loadSheetsSettings());
   const [showSettings, setShowSettings] = useState(false);
 
   // Reset the draft if the underlying data refreshes (e.g. after a save).
@@ -364,19 +350,18 @@ export function Config({ data }: { data: AppData }) {
   const totalHolePar = (draft.holes ?? []).reduce((a, h) => a + (h?.par ?? 0), 0);
 
   const onSave = async () => {
-    const json = JSON.stringify(draft, null, 2) + '\n';
-    if (!gh) {
-      downloadJson('course.json', json);
+    const c = loadSheetsSettings();
+    if (!c) {
       setStatus({
-        kind: 'ok',
-        msg: 'No GitHub token configured. Downloaded course.json — commit it manually.',
+        kind: 'err',
+        msg: 'No Sheet configured. Open Settings and set Sheet ID + Apps Script URL.',
       });
       return;
     }
-    setStatus({ kind: 'busy', msg: 'Committing…' });
+    setStatus({ kind: 'busy', msg: 'Saving…' });
     try {
-      await commitFile(gh, 'public/data/course.json', json, 'Config: update course/divisions');
-      setStatus({ kind: 'ok', msg: 'Committed. Pages will rebuild in ~30s.' });
+      await saveCourse(c, draft);
+      setStatus({ kind: 'ok', msg: 'Saved. Spectators see the update on the next refresh (~15 s).' });
       await data.reload();
     } catch (e) {
       setStatus({ kind: 'err', msg: e instanceof Error ? e.message : String(e) });
@@ -399,7 +384,7 @@ export function Config({ data }: { data: AppData }) {
           className="text-sm text-rd-navy hover:underline whitespace-nowrap"
           onClick={() => setShowSettings(true)}
         >
-          {gh ? 'GitHub: configured' : 'Configure GitHub token'}
+          {cfg ? 'Sheet: configured' : 'Configure Google Sheet'}
         </button>
       </div>
 
@@ -702,15 +687,14 @@ export function Config({ data }: { data: AppData }) {
       </div>
 
       {showSettings && (
-        <GitHubSettingsDialog
-          initial={gh}
-          onSave={(s) => {
-            saveGitHubSettings(s);
-            setGh(s);
+        <SheetSettingsDialog
+          initial={cfg}
+          onSaved={(s) => {
+            setCfg(s);
             setShowSettings(false);
           }}
           onCancel={() => {
-            setGh(loadGitHubSettings());
+            setCfg(loadSheetsSettings());
             setShowSettings(false);
           }}
         />

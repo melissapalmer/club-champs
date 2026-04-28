@@ -1,20 +1,16 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useIsAdmin } from '../admin';
-import { GitHubSettingsDialog } from '../components/GitHubSettingsDialog';
 import { ScoreEntryPanel } from '../components/ScoreEntryPanel';
+import { SheetSettingsDialog } from '../components/SheetSettingsDialog';
 import type { AppData } from '../data';
-import {
-  loadGitHubSettings,
-  saveGitHubSettings,
-  type GitHubSettings,
-} from '../github';
+import { loadSheetsSettings, type SheetsSettings } from '../sheets/settings';
 
 export function Enter({ data }: { data: AppData }) {
   const [params] = useSearchParams();
   const admin = useIsAdmin();
   const [showSettings, setShowSettings] = useState(false);
-  const [gh, setGh] = useState<GitHubSettings | null>(loadGitHubSettings());
+  const [cfg, setCfg] = useState<SheetsSettings | null>(loadSheetsSettings());
 
   if (!admin) {
     return (
@@ -35,22 +31,21 @@ export function Enter({ data }: { data: AppData }) {
           className="text-sm text-rd-navy hover:underline"
           onClick={() => setShowSettings(true)}
         >
-          {gh ? 'GitHub: configured' : 'Configure GitHub token'}
+          {cfg ? 'Sheet: configured' : 'Configure Google Sheet'}
         </button>
       </div>
 
       <ScoreEntryPanel data={data} initialSaId={params.get('saId') ?? ''} />
 
       {showSettings && (
-        <GitHubSettingsDialog
-          initial={gh}
-          onSave={(s) => {
-            saveGitHubSettings(s);
-            setGh(s);
+        <SheetSettingsDialog
+          initial={cfg}
+          onSaved={(s) => {
+            setCfg(s);
             setShowSettings(false);
           }}
           onCancel={() => {
-            setGh(loadGitHubSettings());
+            setCfg(loadSheetsSettings());
             setShowSettings(false);
           }}
         />
