@@ -3,9 +3,9 @@ import { useIsAdmin } from '../admin';
 import { SheetSettingsDialog } from '../components/SheetSettingsDialog';
 import type { AppData } from '../data';
 import {
+  CATEGORIES_FOR_FORMAT,
   DEFAULT_TOP_N,
   defaultAwards,
-  PRIZE_CATEGORIES,
   PRIZE_LABELS,
 } from '../prizes';
 import { DEFAULT_COUNT_OUT_STEPS } from '../scoring/engine';
@@ -20,6 +20,7 @@ import type {
   Course,
   DivisionCode,
   DivisionConfig,
+  DivisionFormat,
   PrizeAward,
   PrizeCategory,
   PrizeConfig,
@@ -234,17 +235,20 @@ function CountOutEditor({
 
 function PrizesEditor({
   prizes,
+  format,
   onChange,
 }: {
   prizes: PrizeConfig | undefined;
+  format: DivisionFormat;
   onChange: (p: PrizeConfig) => void;
 }) {
-  const awards = prizes?.awards ?? defaultAwards();
+  const availableCategories = CATEGORIES_FOR_FORMAT[format];
+  const awards = prizes?.awards ?? defaultAwards(format);
   const enabled = new Map<PrizeCategory, number>(awards.map((a) => [a.category, a.topN]));
 
   const setAwards = (next: PrizeAward[]) => {
-    // Keep awards in canonical category order.
-    const ordered = PRIZE_CATEGORIES.flatMap((c) => {
+    // Keep awards in canonical category order, scoped to the format's categories.
+    const ordered = availableCategories.flatMap((c) => {
       const found = next.find((a) => a.category === c);
       return found ? [found] : [];
     });
@@ -270,7 +274,7 @@ function PrizesEditor({
     <div className="space-y-2">
       <span className="text-sm font-medium">Prizes</span>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
-        {PRIZE_CATEGORIES.map((cat) => {
+        {availableCategories.map((cat) => {
           const isOn = enabled.has(cat);
           const top = enabled.get(cat) ?? DEFAULT_TOP_N;
           return (
@@ -715,6 +719,26 @@ export function Config({ data }: { data: AppData }) {
                 value={div.handicapPct}
                 onChange={(v) => updateDivision(idx, { handicapPct: v })}
               />
+              <label className="block col-span-2 sm:col-span-1">
+                <span className="text-xs text-rd-ink/60 block">Format</span>
+                <select
+                  className="w-full border rounded px-2 py-1 mt-0.5"
+                  value={div.format ?? 'medal'}
+                  onChange={(e) => {
+                    const nextFormat = e.target.value as DivisionFormat;
+                    // Reset prizes to the new format's defaults so any net/eclectic
+                    // entries from medal don't linger on a stableford division
+                    // (and vice versa). User can re-customise after.
+                    updateDivision(idx, {
+                      format: nextFormat,
+                      prizes: { awards: defaultAwards(nextFormat) },
+                    });
+                  }}
+                >
+                  <option value="medal">Medal / Stroke</option>
+                  <option value="stableford">Stableford</option>
+                </select>
+              </label>
               <label className="flex items-center gap-2 col-span-2 sm:col-span-6">
                 <input
                   type="checkbox"
@@ -729,6 +753,7 @@ export function Config({ data }: { data: AppData }) {
               <div className="col-span-2 sm:col-span-6 border-t border-rd-cream pt-3">
                 <PrizesEditor
                   prizes={div.prizes}
+                  format={div.format ?? 'medal'}
                   onChange={(p) => updateDivision(idx, { prizes: p })}
                 />
               </div>

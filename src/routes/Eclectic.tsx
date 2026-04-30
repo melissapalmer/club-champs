@@ -13,7 +13,11 @@ const HOLE_HEADERS = Array.from({ length: 18 }, (_, i) => i + 1);
 
 export function Eclectic({ data }: { data: AppData }) {
   const { course, players, scores } = data;
-  const divs = useMemo(() => visibleDivisions(course), [course]);
+  // Stableford divisions don't take part in eclectic — they're omitted entirely.
+  const divs = useMemo(
+    () => visibleDivisions(course).filter((d) => (d.format ?? 'medal') !== 'stableford'),
+    [course]
+  );
   const lines = useMemo(
     () => buildPlayerLines(players, scores, course),
     [players, scores, course]

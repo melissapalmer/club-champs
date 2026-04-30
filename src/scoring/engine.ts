@@ -4,6 +4,7 @@ import type {
   CountOutStep,
   DivisionConfig,
   DayScore,
+  Hole,
   Player,
   Tee,
   TeeRatings,
@@ -108,6 +109,80 @@ export function eclecticNet(
   return gross == null ? null : gross - (ph * eclecticPct) / 100;
 }
 
+/**
+ * Distribute a player's playing-handicap strokes across 18 holes by stroke index.
+ * Hardest hole (SI=1) gets the first stroke; if PH > 18, the hardest hole gets a
+ * second stroke before any other hole gets a second, and so on.
+ *
+ *   floor(PH / 18) base strokes on every hole
+ *   plus 1 extra stroke on holes whose SI ≤ (PH mod 18)
+ *
+ * Returns 0 for non-positive PH or missing/invalid SI.
+ */
+export function strokesForHole(ph: number, si: number): number {
+  if (!Number.isFinite(ph) || ph <= 0) return 0;
+  if (!Number.isFinite(si) || si < 1 || si > 18) return 0;
+  const base = Math.floor(ph / 18);
+  const extra = si <= ph % 18 ? 1 : 0;
+  return base + extra;
+}
+
+/**
+ * Stableford points for a single hole. `gross` is the player's stroke count;
+ * `strokes` is the handicap strokes received on this hole (from `strokesForHole`).
+ *   net = gross - strokes
+ *   net ≤ par - 2  → 4 (net eagle or better)
+ *   net  = par - 1 → 3 (net birdie)
+ *   net  = par     → 2 (net par)
+ *   net  = par + 1 → 1 (net bogey)
+ *   net ≥ par + 2  → 0
+ * Returns null if `gross` is null.
+ */
+export function stablefordPoints(
+  gross: number | null,
+  par: number,
+  strokes: number
+): number | null {
+  if (gross == null) return null;
+  const net = gross - strokes;
+  const diff = net - par;
+  if (diff <= -2) return 4;
+  if (diff === -1) return 3;
+  if (diff === 0) return 2;
+  if (diff === 1) return 1;
+  return 0;
+}
+
+/** Per-hole stableford points across the 18-hole array. */
+export function stablefordHoles(
+  dayHoles: (number | null)[],
+  ph: number | null,
+  course: Course
+): (number | null)[] {
+  if (ph == null) return Array(18).fill(null);
+  const courseHoles: Hole[] = course.holes ?? [];
+  return dayHoles.map((gross, i) => {
+    const hole = courseHoles[i];
+    if (!hole) return null;
+    const si = course.gender === 'women' ? hole.siWomen : hole.siMen;
+    const strokes = strokesForHole(ph, si);
+    return stablefordPoints(gross, hole.par, strokes);
+  });
+}
+
+/** Sum of `stablefordHoles`. Null only if PH is missing. Partial-day arrays are fine — unentered holes contribute 0 (so live mid-round totals still display). */
+export function stablefordTotal(
+  dayHoles: (number | null)[],
+  ph: number | null,
+  course: Course
+): number | null {
+  if (ph == null) return null;
+  return stablefordHoles(dayHoles, ph, course).reduce<number>(
+    (a, b) => a + (b ?? 0),
+    0
+  );
+}
+
 /** Standard-competition ranking ("1224"): tied entries share rank, next entries skip. */
 export function rankWithTies(values: (number | null)[]): (number | null)[] {
   const indexed = values
@@ -131,9 +206,25 @@ export type PlayerLine = {
   division: DivisionConfig | undefined;
   hc: number | null;
   ph: number | null;
-  sat: { gross: number | null; net: number | null; holes: (number | null)[] };
-  sun: { gross: number | null; net: number | null; holes: (number | null)[] };
-  overall: { gross: number | null; net: number | null };
+  sat: {
+    gross: number | null;
+    net: number | null;
+    holes: (number | null)[];
+    stableford: number | null;
+    stablefordHoles: (number | null)[];
+  };
+  sun: {
+    gross: number | null;
+    net: number | null;
+    holes: (number | null)[];
+    stableford: number | null;
+    stablefordHoles: (number | null)[];
+  };
+  overall: {
+    gross: number | null;
+    net: number | null;
+    stableford: number | null;
+  };
   eclectic: { holes: (number | null)[]; gross: number | null; net: number | null };
 };
 
@@ -168,16 +259,38 @@ export function buildPlayerLines(
     const eclGross = eclecticGross(day1Holes, day2Holes);
     const eclNet = ph != null ? eclecticNet(eclGross, ph, course.eclecticHandicapPct) : null;
 
+    const satStablefordHoles = stablefordHoles(day1Holes, ph, course);
+    const sunStablefordHoles = stablefordHoles(day2Holes, ph, course);
+    const satStableford = stablefordTotal(day1Holes, ph, course);
+    const sunStableford = stablefordTotal(day2Holes, ph, course);
+    const overallStableford =
+      satStableford != null && sunStableford != null
+        ? satStableford + sunStableford
+        : null;
+
     return {
       player,
       division,
       hc,
       ph,
-      sat: { gross: satGross, net: satNet, holes: day1Holes },
-      sun: { gross: sunGross, net: sunNet, holes: day2Holes },
+      sat: {
+        gross: satGross,
+        net: satNet,
+        holes: day1Holes,
+        stableford: satStableford,
+        stablefordHoles: satStablefordHoles,
+      },
+      sun: {
+        gross: sunGross,
+        net: sunNet,
+        holes: day2Holes,
+        stableford: sunStableford,
+        stablefordHoles: sunStablefordHoles,
+      },
       overall: {
         gross: overallGross(satGross, sunGross),
         net: overallNet(satNet, sunNet),
+        stableford: overallStableford,
       },
       eclectic: { holes: eclHoles, gross: eclGross, net: eclNet },
     };
@@ -220,8 +333,8 @@ export function countOutSegmentValue(
 }
 
 export type RankScope =
-  | { kind: 'day'; day: 1 | 2; metric: 'gross' | 'net' }
-  | { kind: 'overall'; metric: 'gross' | 'net' }
+  | { kind: 'day'; day: 1 | 2; metric: 'gross' | 'net' | 'stableford' }
+  | { kind: 'overall'; metric: 'gross' | 'net' | 'stableford' }
   | { kind: 'eclectic'; metric: 'gross' | 'net' };
 
 export type RankResult = {
@@ -235,31 +348,43 @@ export type RankResult = {
 
 function primaryValue(line: PlayerLine, scope: RankScope): number | null {
   switch (scope.kind) {
-    case 'day':
-      return scope.day === 1
-        ? scope.metric === 'gross'
-          ? line.sat.gross
-          : line.sat.net
-        : scope.metric === 'gross'
-          ? line.sun.gross
-          : line.sun.net;
+    case 'day': {
+      const day = scope.day === 1 ? line.sat : line.sun;
+      if (scope.metric === 'gross') return day.gross;
+      if (scope.metric === 'net') return day.net;
+      return day.stableford;
+    }
     case 'overall':
-      return scope.metric === 'gross' ? line.overall.gross : line.overall.net;
+      if (scope.metric === 'gross') return line.overall.gross;
+      if (scope.metric === 'net') return line.overall.net;
+      return line.overall.stableford;
     case 'eclectic':
       return scope.metric === 'gross' ? line.eclectic.gross : line.eclectic.net;
   }
 }
 
+/**
+ * Pick the per-hole array that count-out segments are summed from. For
+ * stableford metrics we use the stableford-points-per-hole array (highest
+ * sum wins); for medal metrics it's the gross-strokes array (lowest wins).
+ */
 function holesForCountOut(line: PlayerLine, scope: RankScope): (number | null)[] {
   switch (scope.kind) {
-    case 'day':
-      return scope.day === 1 ? line.sat.holes : line.sun.holes;
+    case 'day': {
+      const day = scope.day === 1 ? line.sat : line.sun;
+      return scope.metric === 'stableford' ? day.stablefordHoles : day.holes;
+    }
     // Standard practice for 36-hole events: tie-break on the most recent round.
     case 'overall':
-      return line.sun.holes;
+      return scope.metric === 'stableford' ? line.sun.stablefordHoles : line.sun.holes;
     case 'eclectic':
       return line.eclectic.holes;
   }
+}
+
+/** True when higher primary-value = better (stableford). False otherwise. */
+function isHigherBetter(scope: RankScope): boolean {
+  return scope.metric === 'stableford';
 }
 
 /**
@@ -279,11 +404,12 @@ export function rankWithCountOut(
   scope: RankScope,
   course: Course
 ): RankResult[] {
+  const higherBetter = isHigherBetter(scope);
   const values = lines.map((l) => primaryValue(l, scope));
   const indexed = values
     .map((v, i) => ({ v, i }))
     .filter((x): x is { v: number; i: number } => x.v != null);
-  indexed.sort((a, b) => a.v - b.v);
+  indexed.sort((a, b) => (higherBetter ? b.v - a.v : a.v - b.v));
 
   const out: RankResult[] = lines.map(() => ({
     pos: null,
@@ -304,6 +430,8 @@ export function rankWithCountOut(
   }
 
   const co = course.countOut;
+  // Net handicap fractions only apply for medal-net count-outs. Stableford
+  // already bakes handicap into the per-hole points, so no further deduction.
   const isNet = scope.metric === 'net';
 
   for (const g of groups) {
@@ -332,8 +460,9 @@ export function rankWithCountOut(
       // If any candidate's segment is incomplete, we can't fairly decide here —
       // try the next, smaller window which may be fully entered.
       if (segValues.some((sv) => sv.v == null)) continue;
-      const min = Math.min(...segValues.map((sv) => sv.v as number));
-      const survivors = segValues.filter((sv) => sv.v === min);
+      const nums = segValues.map((sv) => sv.v as number);
+      const best = higherBetter ? Math.max(...nums) : Math.min(...nums);
+      const survivors = segValues.filter((sv) => sv.v === best);
       if (survivors.length === 1) {
         out[survivors[0].idx].brokenByCountOut = true;
         break;

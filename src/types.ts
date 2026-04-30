@@ -22,7 +22,10 @@ export type PrizeCategory =
   | 'sunNet'
   | 'overallGross'
   | 'overallNet'
-  | 'eclectic';
+  | 'eclectic'
+  | 'satStableford'
+  | 'sunStableford'
+  | 'overallStableford';
 
 export type PrizeAward = {
   category: PrizeCategory;
@@ -37,6 +40,8 @@ export type PrizeConfig = {
 
 export type DivisionCode = 'A' | 'B' | 'C' | 'D';
 
+export type DivisionFormat = 'medal' | 'stableford';
+
 export type DivisionConfig = {
   code: DivisionCode;
   name: string;
@@ -46,6 +51,15 @@ export type DivisionConfig = {
   handicapPct: number;
   hidden?: boolean;
   prizes?: PrizeConfig;
+  /**
+   * Scoring format for this division. Defaults to 'medal' when absent.
+   * Stableford divisions:
+   *   - rank by total stableford points (higher is better)
+   *   - prize categories swap net→stableford
+   *   - excluded from the Eclectic page
+   *   - count-out runs on stableford-points-per-hole (highest wins)
+   */
+  format?: DivisionFormat;
 };
 
 export type BrandingColors = {

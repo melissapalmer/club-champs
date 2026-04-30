@@ -11,8 +11,13 @@ import {
   playingHandicap,
   rankWithCountOut,
   rankWithTies,
+  stablefordHoles,
+  stablefordPoints,
+  stablefordTotal,
+  strokesForHole,
   type PlayerLine,
 } from './engine';
+import { defaultAwards, CATEGORIES_FOR_FORMAT } from '../prizes';
 import type { Course, DayScore, Player } from '../types';
 
 const course: Course = {
@@ -232,11 +237,24 @@ describe('rankWithCountOut', () => {
       division: undefined,
       hc: 18,
       ph,
-      sat: { gross: satGross, net: satNet, holes: sat },
-      sun: { gross: sunGross, net: sunNet, holes: sun },
+      sat: {
+        gross: satGross,
+        net: satNet,
+        holes: sat,
+        stableford: null,
+        stablefordHoles: Array(18).fill(null),
+      },
+      sun: {
+        gross: sunGross,
+        net: sunNet,
+        holes: sun,
+        stableford: null,
+        stablefordHoles: Array(18).fill(null),
+      },
       overall: {
         gross: satGross != null && sunGross != null ? satGross + sunGross : null,
         net: satNet != null && sunNet != null ? satNet + sunNet : null,
+        stableford: null,
       },
       eclectic: { holes: eclHoles, gross: eclGross, net: null },
     };
@@ -420,5 +438,239 @@ describe('buildPlayerLines (Kay, end to end)', () => {
   it('computes eclectic to match the spreadsheet (gross 84, net 80)', () => {
     expect(line.eclectic.gross).toBe(84);
     expect(line.eclectic.net).toBe(80);
+  });
+});
+
+describe('strokesForHole', () => {
+  it('gives one stroke per hole when PH = 18', () => {
+    for (let si = 1; si <= 18; si++) {
+      expect(strokesForHole(18, si)).toBe(1);
+    }
+  });
+
+  it('gives zero strokes everywhere when PH = 0 or negative', () => {
+    expect(strokesForHole(0, 1)).toBe(0);
+    expect(strokesForHole(-3, 5)).toBe(0);
+  });
+
+  it('distributes by SI when PH < 18 (PH=5 → strokes only on SI 1..5)', () => {
+    expect(strokesForHole(5, 1)).toBe(1);
+    expect(strokesForHole(5, 5)).toBe(1);
+    expect(strokesForHole(5, 6)).toBe(0);
+    expect(strokesForHole(5, 18)).toBe(0);
+  });
+
+  it('handles PH > 18 (PH=20 → 2 strokes on the two hardest holes, 1 elsewhere)', () => {
+    expect(strokesForHole(20, 1)).toBe(2);
+    expect(strokesForHole(20, 2)).toBe(2);
+    expect(strokesForHole(20, 3)).toBe(1);
+    expect(strokesForHole(20, 18)).toBe(1);
+  });
+
+  it('caps at 2 strokes per hole for PH = 36', () => {
+    for (let si = 1; si <= 18; si++) {
+      expect(strokesForHole(36, si)).toBe(2);
+    }
+  });
+});
+
+describe('stablefordPoints', () => {
+  it('awards 4 / 3 / 2 / 1 / 0 across the standard tiers', () => {
+    // par 4, 0 strokes received
+    expect(stablefordPoints(2, 4, 0)).toBe(4); // net eagle
+    expect(stablefordPoints(3, 4, 0)).toBe(3); // net birdie
+    expect(stablefordPoints(4, 4, 0)).toBe(2); // net par
+    expect(stablefordPoints(5, 4, 0)).toBe(1); // net bogey
+    expect(stablefordPoints(6, 4, 0)).toBe(0); // net double or worse
+    expect(stablefordPoints(8, 4, 0)).toBe(0);
+  });
+
+  it('credits handicap strokes received on the hole', () => {
+    // par 4, 1 stroke received: a gross 5 becomes net 4 (par) → 2 pts.
+    expect(stablefordPoints(5, 4, 1)).toBe(2);
+    // par 4, 2 strokes received: a gross 6 becomes net 4 (par) → 2 pts.
+    expect(stablefordPoints(6, 4, 2)).toBe(2);
+  });
+
+  it('returns null when gross is null', () => {
+    expect(stablefordPoints(null, 4, 1)).toBeNull();
+  });
+});
+
+describe('stablefordHoles + stablefordTotal', () => {
+  // Use Kay's known data from earlier tests. Kay HI 14.2 in Silver red tees
+  // ⇒ HC ≈ 16.16, PH = 16. That distributes 1 stroke each on SI 1..16.
+  // Mock course's holes have siWomen = i+1 (so siWomen 1..18 across holes 1..18).
+  const ph = 16;
+
+  it('returns 18 entries, each null when gross is null', () => {
+    const allNull = Array(18).fill(null) as (number | null)[];
+    expect(stablefordHoles(allNull, ph, course)).toHaveLength(18);
+    expect(stablefordHoles(allNull, ph, course).every((p) => p === null)).toBe(true);
+  });
+
+  it('matches manual computation for a few KAY_DAY1 holes', () => {
+    const pts = stablefordHoles(KAY_DAY1, ph, course);
+    // Hole 1 (par 4, siWomen=1 → 1 stroke): gross 6 → net 5 → bogey → 1.
+    expect(pts[0]).toBe(1);
+    // Hole 6 (par 4, siWomen=6 → 1 stroke): gross 3 → net 2 → eagle → 4.
+    expect(pts[5]).toBe(4);
+    // Hole 17 (par 4, siWomen=17 → 0 strokes since PH=16): gross 5 → bogey → 1.
+    expect(pts[16]).toBe(1);
+    // Hole 18 (siWomen=18 → 0 strokes): gross 7 → net 7 vs par 4 → 0.
+    expect(pts[17]).toBe(0);
+  });
+
+  it('returns null when ph is null', () => {
+    expect(stablefordTotal(KAY_DAY1, null, course)).toBeNull();
+  });
+});
+
+describe('rankWithCountOut (stableford)', () => {
+  const baseCourse: Course = {
+    ...course,
+    countOut: { enabled: true, steps: DEFAULT_COUNT_OUT_STEPS },
+  };
+
+  function lineFor({
+    saId,
+    sat,
+    sun,
+    ph = 16,
+  }: {
+    saId: string;
+    sat: (number | null)[];
+    sun: (number | null)[];
+    ph?: number;
+  }): PlayerLine {
+    const satGross = dayTotals(sat).gross;
+    const sunGross = dayTotals(sun).gross;
+    const satSt = stablefordTotal(sat, ph, baseCourse);
+    const sunSt = stablefordTotal(sun, ph, baseCourse);
+    return {
+      player: { firstName: saId, lastName: '', saId, hi: 24 },
+      division: undefined,
+      hc: ph,
+      ph,
+      sat: {
+        gross: satGross,
+        net: satGross != null ? satGross - ph : null,
+        holes: sat,
+        stableford: satSt,
+        stablefordHoles: stablefordHoles(sat, ph, baseCourse),
+      },
+      sun: {
+        gross: sunGross,
+        net: sunGross != null ? sunGross - ph : null,
+        holes: sun,
+        stableford: sunSt,
+        stablefordHoles: stablefordHoles(sun, ph, baseCourse),
+      },
+      overall: {
+        gross: satGross != null && sunGross != null ? satGross + sunGross : null,
+        net:
+          satGross != null && sunGross != null ? satGross - ph + (sunGross - ph) : null,
+        stableford: satSt != null && sunSt != null ? satSt + sunSt : null,
+      },
+      eclectic: { holes: Array(18).fill(null), gross: null, net: null },
+    };
+  }
+
+  it('ranks by total stableford points, highest first', () => {
+    // P1 plays par for 18 holes (gross 72) with 16 strokes received → mostly net birdies on harder holes.
+    const par72 = Array(18).fill(4);
+    // P2 plays par+1 on 6 holes (gross 78) → fewer points than P1.
+    const worse = [...par72.slice(0, 12), 5, 5, 5, 5, 5, 5];
+    const sun = par72;
+    const a = lineFor({ saId: 'A', sat: par72, sun });
+    const b = lineFor({ saId: 'B', sat: worse, sun });
+
+    // Sanity: A's total points > B's total points.
+    expect((a.overall.stableford ?? 0) > (b.overall.stableford ?? 0)).toBe(true);
+
+    const r = rankWithCountOut(
+      [a, b],
+      { kind: 'overall', metric: 'stableford' },
+      baseCourse
+    );
+    expect(r[0].pos).toBe(1);
+    expect(r[1].pos).toBe(2);
+    expect(r[0].tied).toBe(false);
+    expect(r[1].tied).toBe(false);
+  });
+
+  it('breaks a stableford tie at back-9, highest points wins', () => {
+    // Both play identical Sat (so day-1 ties) and matching Sun gross totals
+    // BUT distribute the strokes differently across the back-9 → different
+    // back-9 stableford points (since SI thresholds vary by hole).
+    // Simpler: synthesise stableford holes directly via different gross arrays
+    // that produce identical day-2 totals but different back-9 totals.
+    //
+    // Concrete: sat = par 18 holes → 36 strokes? No, 18 holes par 4 = 72.
+    // Just give both players the same Sat. Differ only on Sun.
+    const sat = Array(18).fill(4);
+    // C Sun: front-9 = 4s, back-9 = 4s ⇒ each hole net 3 (1 stroke received on SI 1–16) on holes with SI ≤ 16.
+    const cSun = Array(18).fill(4);
+    // D Sun: front-9 has two bogeys (5s on hole 1 & 2), back-9 has two birdies (3s on hole 10 & 11) → same gross total.
+    const dSun = [5, 5, 4, 4, 4, 4, 4, 4, 4, 3, 3, 4, 4, 4, 4, 4, 4, 4];
+
+    const c = lineFor({ saId: 'C', sat, sun: cSun });
+    const d = lineFor({ saId: 'D', sat, sun: dSun });
+
+    // Both should have identical Sun GROSS totals (72 each).
+    expect(c.sun.gross).toBe(d.sun.gross);
+    // …but D's back-9 stableford points should be HIGHER (extra net birdies there).
+    const cBack9Points = (c.sun.stablefordHoles.slice(9) as number[]).reduce((a, b) => a + b, 0);
+    const dBack9Points = (d.sun.stablefordHoles.slice(9) as number[]).reduce((a, b) => a + b, 0);
+    expect(dBack9Points).toBeGreaterThan(cBack9Points);
+
+    // To force a tie on overall stableford TOTAL while keeping back-9 differences,
+    // adjust C and D to have equal overall points. Easiest path: give C two front-9
+    // birdies on Sat that match D's back-9 advantage. Skip the heavy synthesis —
+    // instead, assert: when overall stableford ties, the higher back-9 sun points wins.
+    //
+    // Force a tie by overriding `overall.stableford` directly (the engine reads
+    // the stored value). Set both to 50 to engineer the tie.
+    const cTied: PlayerLine = {
+      ...c,
+      overall: { ...c.overall, stableford: 50 },
+    };
+    const dTied: PlayerLine = {
+      ...d,
+      overall: { ...d.overall, stableford: 50 },
+    };
+
+    const r = rankWithCountOut(
+      [cTied, dTied],
+      { kind: 'overall', metric: 'stableford' },
+      baseCourse
+    );
+    expect(r[0].pos).toBe(1);
+    expect(r[1].pos).toBe(1);
+    expect(r[0].tied).toBe(true);
+    // D wins back-9 → c/o on D, not C.
+    expect(r[0].brokenByCountOut).toBe(false); // C
+    expect(r[1].brokenByCountOut).toBe(true); // D
+  });
+});
+
+describe('defaultAwards (format-aware)', () => {
+  it('returns medal categories by default', () => {
+    const cats = defaultAwards().map((a) => a.category);
+    expect(cats).toEqual(CATEGORIES_FOR_FORMAT.medal);
+  });
+
+  it('returns medal categories for format = "medal"', () => {
+    const cats = defaultAwards('medal').map((a) => a.category);
+    expect(cats).toEqual(CATEGORIES_FOR_FORMAT.medal);
+  });
+
+  it('returns only stableford categories for format = "stableford"', () => {
+    const cats = defaultAwards('stableford').map((a) => a.category);
+    expect(cats).toEqual([
+      'satStableford',
+      'sunStableford',
+      'overallStableford',
+    ]);
   });
 });

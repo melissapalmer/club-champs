@@ -65,7 +65,7 @@ function DivisionResults({
   lines: PlayerLine[];
   course: Course;
 }) {
-  const awards = division.prizes?.awards ?? defaultAwards();
+  const awards = division.prizes?.awards ?? defaultAwards(division.format);
 
   return (
     <div className="rd-card p-4">

@@ -5,6 +5,7 @@ import {
   courseHandicap,
   divisionFor,
   playingHandicap,
+  stablefordTotal,
   teeRatings,
 } from '../scoring/engine';
 import { upsertScore } from '../sheets/scoresAdapter';
@@ -64,13 +65,14 @@ export function ScoreEntryPanel({
     [players, saId]
   );
 
-  // Look up the player's playing handicap so we can show net alongside gross.
-  const ph: number | null = useMemo(() => {
-    if (!player) return null;
+  // Look up the player's playing handicap (and division format) so we can show
+  // net or stableford points alongside gross.
+  const { ph, isStableford } = useMemo(() => {
+    if (!player) return { ph: null as number | null, isStableford: false };
     const division = divisionFor(player, data.course);
-    if (!division) return null;
+    if (!division) return { ph: null, isStableford: false };
     const tee = data.course.tees[division.tee];
-    if (!tee) return null;
+    if (!tee) return { ph: null, isStableford: (division.format ?? 'medal') === 'stableford' };
     const ratings = teeRatings(tee, data.course.gender);
     const hc = courseHandicap(
       player.hi,
@@ -79,7 +81,10 @@ export function ScoreEntryPanel({
       tee.par,
       data.course.maxHandicap
     );
-    return playingHandicap(hc, division.handicapPct);
+    return {
+      ph: playingHandicap(hc, division.handicapPct),
+      isStableford: (division.format ?? 'medal') === 'stableford',
+    };
   }, [player, data.course]);
 
   // Load existing scores into the form whenever the player or day changes.
@@ -110,6 +115,9 @@ export function ScoreEntryPanel({
     : null;
   const total = front9Sum != null && back9Sum != null ? front9Sum + back9Sum : null;
   const net = total != null && ph != null ? total - ph : null;
+  // Stableford running total — null until PH is known. Partial rounds count
+  // unentered holes as 0 (intentional: gives organisers a live read-out).
+  const stablefordPts = isStableford ? stablefordTotal(holes, ph, data.course) : null;
 
   const onSave = async () => {
     if (!player) return;
@@ -238,7 +246,15 @@ export function ScoreEntryPanel({
                 {' · '}
                 PH: <span className="font-semibold">{ph ?? '—'}</span>
                 {' · '}
-                Net: <span className="font-semibold text-rd-navy">{net ?? '—'}</span>
+                {isStableford ? (
+                  <>
+                    Pts: <span className="font-semibold text-rd-navy">{stablefordPts ?? '—'}</span>
+                  </>
+                ) : (
+                  <>
+                    Net: <span className="font-semibold text-rd-navy">{net ?? '—'}</span>
+                  </>
+                )}
               </span>
             </div>
           </div>

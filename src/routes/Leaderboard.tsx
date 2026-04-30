@@ -15,7 +15,7 @@ import {
   type PlayerLine,
   type RankResult,
 } from '../scoring/engine';
-import type { Course, Hole, Player } from '../types';
+import type { Course, DivisionFormat, Hole, Player } from '../types';
 
 function PencilIcon() {
   return (
@@ -77,7 +77,23 @@ function CountOutBadge() {
   );
 }
 
-function HoleByHoleCard({ line, course }: { line: PlayerLine; course: Course }) {
+function HoleByHoleCard({
+  line,
+  course,
+  format,
+}: {
+  line: PlayerLine;
+  course: Course;
+  format: DivisionFormat;
+}) {
+  return format === 'stableford' ? (
+    <StablefordHoleCard line={line} course={course} />
+  ) : (
+    <MedalHoleCard line={line} course={course} />
+  );
+}
+
+function MedalHoleCard({ line, course }: { line: PlayerLine; course: Course }) {
   const sat = dayTotals(line.sat.holes);
   const sun = dayTotals(line.sun.holes);
   const holes: Hole[] = course.holes ?? [];
@@ -129,19 +145,13 @@ function HoleByHoleCard({ line, course }: { line: PlayerLine; course: Course }) 
           <tr className="text-rd-ink/60">
             <th className="text-left pr-2 py-2"></th>
             {HOLE_NUMS.slice(0, 9).map((h) => (
-              <th
-                key={h}
-                className="text-center font-semibold tabular-nums px-0.5 py-2"
-              >
+              <th key={h} className="text-center font-semibold tabular-nums px-0.5 py-2">
                 {h}
               </th>
             ))}
             <th className="text-center font-semibold px-1 py-2 bg-rd-navy/5">Out</th>
             {HOLE_NUMS.slice(9).map((h) => (
-              <th
-                key={h}
-                className="text-center font-semibold tabular-nums px-0.5 py-2"
-              >
+              <th key={h} className="text-center font-semibold tabular-nums px-0.5 py-2">
                 {h}
               </th>
             ))}
@@ -190,6 +200,197 @@ function HoleByHoleCard({ line, course }: { line: PlayerLine; course: Course }) 
   );
 }
 
+/**
+ * Hole-by-hole card for stableford divisions.
+ *
+ * Layout differs from medal in three ways:
+ *   1) Adds a "Stroke" row showing the per-hole stroke index (SI) — relevant
+ *      because handicap strokes (and therefore points) depend on it.
+ *   2) Each day spans TWO rows: "Score" (gross strokes per hole) and "Result"
+ *      (stableford points per hole). The day name (Sat/Sun) sits in a rowSpan=2
+ *      cell to its left.
+ *   3) Per-hole values are plain numbers (not par-relative shape symbols).
+ */
+function StablefordHoleCard({ line, course }: { line: PlayerLine; course: Course }) {
+  const holes: Hole[] = course.holes ?? [];
+  const cell = (v: number | null | undefined) => (v == null ? '·' : v);
+  const siFor = (i: number) => {
+    const h = holes[i];
+    if (!h) return null;
+    return course.gender === 'women' ? h.siWomen : h.siMen;
+  };
+
+  const frontPar = holes.slice(0, 9).reduce((a, h) => a + (h?.par ?? 0), 0);
+  const backPar = holes.slice(9, 18).reduce((a, h) => a + (h?.par ?? 0), 0);
+  const totalPar = frontPar + backPar;
+
+  const sumPts = (arr: (number | null)[], start: number, end: number) =>
+    arr.slice(start, end).reduce<number>((a, b) => a + (b ?? 0), 0);
+
+  const DayBlock = ({
+    label,
+    dayHoles,
+    pointsHoles,
+    dayGross,
+    dayPoints,
+  }: {
+    label: string;
+    dayHoles: (number | null)[];
+    pointsHoles: (number | null)[];
+    dayGross: number | null;
+    dayPoints: number | null;
+  }) => {
+    const totals = dayTotals(dayHoles);
+    const outPts = sumPts(pointsHoles, 0, 9);
+    const inPts = sumPts(pointsHoles, 9, 18);
+    return (
+      <>
+        <tr>
+          <th
+            rowSpan={2}
+            className="text-left px-2 py-1.5 font-medium text-rd-ink whitespace-nowrap align-middle"
+          >
+            {label}
+          </th>
+          <th className="text-left px-2 py-1.5 font-normal text-rd-ink/70 whitespace-nowrap">
+            Score
+          </th>
+          {dayHoles.slice(0, 9).map((h, i) => (
+            <td key={`fS${i}`} className="text-center tabular-nums px-1.5 py-1.5">
+              {cell(h)}
+            </td>
+          ))}
+          <td className="text-center font-semibold tabular-nums bg-rd-navy/5 px-1.5 py-1.5">
+            {cell(totals.out)}
+          </td>
+          {dayHoles.slice(9, 18).map((h, i) => (
+            <td key={`bS${i}`} className="text-center tabular-nums px-1.5 py-1.5">
+              {cell(h)}
+            </td>
+          ))}
+          <td className="text-center font-semibold tabular-nums bg-rd-navy/5 px-1.5 py-1.5">
+            {cell(totals.in)}
+          </td>
+          <td className="text-center font-semibold tabular-nums px-1.5 py-1.5">{cell(dayGross)}</td>
+          <td
+            rowSpan={2}
+            className="text-center font-semibold text-rd-navy tabular-nums align-middle px-1.5 py-1.5"
+          >
+            {cell(dayPoints)}
+          </td>
+        </tr>
+        <tr>
+          <th className="text-left px-2 py-1.5 font-normal text-rd-ink/70 whitespace-nowrap">
+            Result
+          </th>
+          {pointsHoles.slice(0, 9).map((p, i) => (
+            <td key={`fR${i}`} className="text-center tabular-nums px-1.5 py-1.5">
+              {p ?? '·'}
+            </td>
+          ))}
+          <td className="text-center font-semibold tabular-nums bg-rd-navy/5 px-1.5 py-1.5">
+            {outPts}
+          </td>
+          {pointsHoles.slice(9, 18).map((p, i) => (
+            <td key={`bR${i}`} className="text-center tabular-nums px-1.5 py-1.5">
+              {p ?? '·'}
+            </td>
+          ))}
+          <td className="text-center font-semibold tabular-nums bg-rd-navy/5 px-1.5 py-1.5">
+            {inPts}
+          </td>
+          <td className="px-1.5 py-1.5"></td>
+        </tr>
+      </>
+    );
+  };
+
+  return (
+    <div className="bg-rd-cream/40 -mx-3 -my-2 px-3 py-3 overflow-x-auto">
+      <table className="text-xs border-collapse w-full [&_th]:border [&_td]:border [&_th]:border-rd-navy/10 [&_td]:border-rd-navy/10">
+        <thead>
+          <tr className="text-rd-ink/60">
+            <th className="text-left px-2 py-2"></th>
+            <th className="text-left px-2 py-2"></th>
+            {HOLE_NUMS.slice(0, 9).map((h) => (
+              <th key={h} className="text-center font-semibold tabular-nums px-1.5 py-2">
+                {h}
+              </th>
+            ))}
+            <th className="text-center font-semibold px-1.5 py-2 bg-rd-navy/5">Out</th>
+            {HOLE_NUMS.slice(9).map((h) => (
+              <th key={h} className="text-center font-semibold tabular-nums px-1.5 py-2">
+                {h}
+              </th>
+            ))}
+            <th className="text-center font-semibold px-1.5 py-2 bg-rd-navy/5">In</th>
+            <th className="text-center font-semibold px-1.5 py-2">Gross</th>
+            <th className="text-center font-semibold px-1.5 py-2">Pts</th>
+          </tr>
+        </thead>
+        <tbody>
+          {/* Par row */}
+          <tr className="text-rd-ink/70">
+            <th className="text-left px-2 py-1.5 font-normal">Par</th>
+            <th className="px-2 py-1.5"></th>
+            {holes.slice(0, 9).map((h, i) => (
+              <td key={`pf${i}`} className="text-center tabular-nums px-1.5 py-1.5">
+                {h?.par ?? '·'}
+              </td>
+            ))}
+            <td className="text-center font-medium tabular-nums bg-rd-navy/5 px-1.5 py-1.5">
+              {frontPar || '·'}
+            </td>
+            {holes.slice(9, 18).map((h, i) => (
+              <td key={`pb${i}`} className="text-center tabular-nums px-1.5 py-1.5">
+                {h?.par ?? '·'}
+              </td>
+            ))}
+            <td className="text-center font-medium tabular-nums bg-rd-navy/5 px-1.5 py-1.5">
+              {backPar || '·'}
+            </td>
+            <td className="text-center font-medium tabular-nums px-1.5 py-1.5">{totalPar || '·'}</td>
+            <td className="px-1.5 py-1.5"></td>
+          </tr>
+          {/* Stroke (SI) row — drives where handicap strokes get applied. */}
+          <tr className="text-rd-ink/70">
+            <th className="text-left px-2 py-1.5 font-normal">Stroke</th>
+            <th className="px-2 py-1.5"></th>
+            {Array.from({ length: 9 }, (_, i) => (
+              <td key={`sf${i}`} className="text-center tabular-nums px-1.5 py-1.5">
+                {siFor(i) ?? '·'}
+              </td>
+            ))}
+            <td className="bg-rd-navy/5 px-1.5 py-1.5"></td>
+            {Array.from({ length: 9 }, (_, i) => (
+              <td key={`sb${i}`} className="text-center tabular-nums px-1.5 py-1.5">
+                {siFor(i + 9) ?? '·'}
+              </td>
+            ))}
+            <td className="bg-rd-navy/5 px-1.5 py-1.5"></td>
+            <td className="px-1.5 py-1.5"></td>
+            <td className="px-1.5 py-1.5"></td>
+          </tr>
+          <DayBlock
+            label="Sat"
+            dayHoles={line.sat.holes}
+            pointsHoles={line.sat.stablefordHoles}
+            dayGross={line.sat.gross}
+            dayPoints={line.sat.stableford}
+          />
+          <DayBlock
+            label="Sun"
+            dayHoles={line.sun.holes}
+            pointsHoles={line.sun.stablefordHoles}
+            dayGross={line.sun.gross}
+            dayPoints={line.sun.stableford}
+          />
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function Leaderboard({ data }: { data: AppData }) {
   const { course, players, scores } = data;
   const admin = useIsAdmin();
@@ -204,15 +405,18 @@ export function Leaderboard({ data }: { data: AppData }) {
 
   const [activeDiv, setActiveDiv] = useState<string>(divs[0]?.code ?? '');
   const divLines = byDiv.get(activeDiv) ?? [];
+  const activeDivision = divs.find((d) => d.code === activeDiv);
+  const activeFormat: DivisionFormat = activeDivision?.format ?? 'medal';
+  const isStableford = activeFormat === 'stableford';
 
-  const overallNetRanks = rankWithCountOut(
+  const overallRanks = rankWithCountOut(
     divLines,
-    { kind: 'overall', metric: 'net' },
+    { kind: 'overall', metric: isStableford ? 'stableford' : 'net' },
     course
   );
 
   const sorted = divLines
-    .map((line, i) => ({ line, rank: overallNetRanks[i] }))
+    .map((line, i) => ({ line, rank: overallRanks[i] }))
     .sort((a, b) => {
       const ap = a.rank.pos;
       const bp = b.rank.pos;
@@ -233,13 +437,17 @@ export function Leaderboard({ data }: { data: AppData }) {
     <section>
       <h1 className="text-2xl text-rd-navy mb-1">Scores</h1>
       <p className="text-sm text-rd-ink/60 mb-4">
-        Medal scoring across two days · ranked by overall net · click a row for hole-by-hole.
+        {isStableford
+          ? 'Individual stableford · ranked by overall points · click a row for hole-by-hole.'
+          : 'Medal scoring across two days · ranked by overall net · click a row for hole-by-hole.'}
       </p>
       <DivisionTabs divisions={divs} active={activeDiv} onChange={setActiveDiv} />
 
-      <div className="mb-3">
-        <ScoreLegend />
-      </div>
+      {!isStableford && (
+        <div className="mb-3">
+          <ScoreLegend />
+        </div>
+      )}
 
       <div className="rd-card overflow-x-auto">
         <table className="rd-table">
@@ -258,11 +466,11 @@ export function Leaderboard({ data }: { data: AppData }) {
             </tr>
             <tr>
               <th className="hidden sm:table-cell">Gross</th>
-              <th>Net</th>
+              <th>{isStableford ? 'Pts' : 'Net'}</th>
               <th className="hidden sm:table-cell">Gross</th>
-              <th>Net</th>
+              <th>{isStableford ? 'Pts' : 'Net'}</th>
               <th className="hidden sm:table-cell">Gross</th>
-              <th>Net</th>
+              <th>{isStableford ? 'Pts' : 'Net'}</th>
             </tr>
           </thead>
           <tbody>
@@ -303,12 +511,12 @@ export function Leaderboard({ data }: { data: AppData }) {
                     <td className="hidden sm:table-cell">{num(line.hc, 1)}</td>
                     <td className="hidden sm:table-cell">{num(line.ph)}</td>
                     <td className="hidden sm:table-cell">{num(line.sat.gross)}</td>
-                    <td>{num(line.sat.net)}</td>
+                    <td>{num(isStableford ? line.sat.stableford : line.sat.net)}</td>
                     <td className="hidden sm:table-cell">{num(line.sun.gross)}</td>
-                    <td>{num(line.sun.net)}</td>
+                    <td>{num(isStableford ? line.sun.stableford : line.sun.net)}</td>
                     <td className="hidden sm:table-cell font-medium">{num(line.overall.gross)}</td>
                     <td className="font-semibold text-rd-navy">
-                      {num(line.overall.net)}
+                      {num(isStableford ? line.overall.stableford : line.overall.net)}
                     </td>
                     {admin && (
                       <td onClick={(e) => e.stopPropagation()}>
@@ -327,7 +535,7 @@ export function Leaderboard({ data }: { data: AppData }) {
                   {isExpanded && (
                     <tr>
                       <td colSpan={colCount + 1} className="p-0">
-                        <HoleByHoleCard line={line} course={course} />
+                        <HoleByHoleCard line={line} course={course} format={activeFormat} />
                       </td>
                     </tr>
                   )}
