@@ -66,7 +66,7 @@ export function Layout({ course }: { course: Course | null }) {
         <Outlet />
       </main>
       <footer className="border-t border-rd-cream text-xs text-rd-ink/60 py-4 text-center">
-        Royal Durban GC · 2026 Ladies Club Champs
+        {course?.club ?? 'Royal Durban Golf Club'} · {course?.event ?? '2026 Ladies Club Champs'}
       </footer>
     </div>
   );
