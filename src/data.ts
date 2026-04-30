@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { loadCourse } from './sheets/courseAdapter';
 import { loadPlayers } from './sheets/playersAdapter';
 import { loadScores } from './sheets/scoresAdapter';
-import { loadSheetsSettings } from './sheets/settings';
+import { loadSheetIdForReads } from './sheets/settings';
 import type { Course, DayScore, Player } from './types';
 
 const POLL_MS = 15_000;
@@ -56,10 +56,10 @@ export function useAppData(): { data: AppData | null; error: string | null } {
       window.removeEventListener('rd-sheets-change', onChange);
     };
   }, []);
-  sheetIdRef.current = loadSheetsSettings()?.sheetId ?? null;
+  sheetIdRef.current = loadSheetIdForReads();
 
   const reload = useCallback(async () => {
-    const sheetId = loadSheetsSettings()?.sheetId;
+    const sheetId = loadSheetIdForReads();
     if (!sheetId) {
       setError(
         'No Google Sheet configured. Open Score Entry or Config to set the Sheet ID and Apps Script URL.'
