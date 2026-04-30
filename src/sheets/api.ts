@@ -13,12 +13,19 @@ export type SheetsConfig = {
   secret: string;
 };
 
-/** Resolved Sheet ID (may be null if no settings or no fallback). */
+/**
+ * Build the public CSV URL for one tab. The `headers=1` parameter is
+ * essential: without it, gviz tries to auto-detect how many leading
+ * string-only rows form the header and frequently merges several rows
+ * (e.g. our key/value rows up to the first numeric value) into a single
+ * "header", leaving real data rows missing from the parsed output.
+ * Forcing headers=1 makes row 1 the header and row 2+ the data.
+ */
 export function csvUrl(sheetId: string, tab: string): string {
   return (
     'https://docs.google.com/spreadsheets/d/' +
     encodeURIComponent(sheetId) +
-    '/gviz/tq?tqx=out:csv&sheet=' +
+    '/gviz/tq?tqx=out:csv&headers=1&sheet=' +
     encodeURIComponent(tab)
   );
 }
