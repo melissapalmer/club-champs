@@ -10,9 +10,10 @@ import {
   buildPlayerLines,
   dayTotals,
   linesByDivision,
-  rankWithTies,
+  rankWithCountOut,
   visibleDivisions,
   type PlayerLine,
+  type RankResult,
 } from '../scoring/engine';
 import type { Course, Hole, Player } from '../types';
 
@@ -54,6 +55,27 @@ function Chevron({ open }: { open: boolean }) {
 }
 
 const HOLE_NUMS = Array.from({ length: 18 }, (_, i) => i + 1);
+
+function PosCell({ rank }: { rank: RankResult }) {
+  if (rank.pos == null) return <>—</>;
+  return (
+    <>
+      {rank.tied && <span>T</span>}
+      {rank.pos}
+    </>
+  );
+}
+
+function CountOutBadge() {
+  return (
+    <span
+      className="ml-1.5 align-middle text-[10px] uppercase tracking-wide px-1 rounded bg-rd-gold/20 text-rd-navy"
+      title="Won the count-out tie-break"
+    >
+      c/o
+    </span>
+  );
+}
 
 function HoleByHoleCard({ line, course }: { line: PlayerLine; course: Course }) {
   const sat = dayTotals(line.sat.holes);
@@ -105,17 +127,27 @@ function HoleByHoleCard({ line, course }: { line: PlayerLine; course: Course }) 
       <table className="text-xs border-collapse w-full">
         <thead>
           <tr className="text-rd-ink/60">
-            <th className="text-left pr-2"></th>
+            <th className="text-left pr-2 py-2"></th>
             {HOLE_NUMS.slice(0, 9).map((h) => (
-              <th key={h} className="text-center font-medium px-0.5">{h}</th>
+              <th
+                key={h}
+                className="text-center font-semibold tabular-nums px-0.5 py-2"
+              >
+                {h}
+              </th>
             ))}
-            <th className="text-center font-medium px-1 bg-rd-navy/5">Out</th>
+            <th className="text-center font-semibold px-1 py-2 bg-rd-navy/5">Out</th>
             {HOLE_NUMS.slice(9).map((h) => (
-              <th key={h} className="text-center font-medium px-0.5">{h}</th>
+              <th
+                key={h}
+                className="text-center font-semibold tabular-nums px-0.5 py-2"
+              >
+                {h}
+              </th>
             ))}
-            <th className="text-center font-medium px-1 bg-rd-navy/5">In</th>
-            <th className="text-center font-medium px-1">Gross</th>
-            <th className="text-center font-medium px-1">Net</th>
+            <th className="text-center font-semibold px-1 py-2 bg-rd-navy/5">In</th>
+            <th className="text-center font-semibold px-1 py-2">Gross</th>
+            <th className="text-center font-semibold px-1 py-2">Net</th>
           </tr>
         </thead>
         <tbody className="[&_td]:border-t [&_td]:border-rd-cream">
@@ -162,7 +194,7 @@ export function Leaderboard({ data }: { data: AppData }) {
   const { course, players, scores } = data;
   const admin = useIsAdmin();
   const [editing, setEditing] = useState<Player | null>(null);
-  const [expandedSaId, setExpandedSaId] = useState<string | null>(null);
+  const [expandedSaIds, setExpandedSaIds] = useState<Set<string>>(() => new Set());
   const divs = useMemo(() => visibleDivisions(course), [course]);
   const lines = useMemo(
     () => buildPlayerLines(players, scores, course),
@@ -173,15 +205,26 @@ export function Leaderboard({ data }: { data: AppData }) {
   const [activeDiv, setActiveDiv] = useState<string>(divs[0]?.code ?? '');
   const divLines = byDiv.get(activeDiv) ?? [];
 
-  const overallNetRanks = rankWithTies(divLines.map((l) => l.overall.net));
+  const overallNetRanks = rankWithCountOut(
+    divLines,
+    { kind: 'overall', metric: 'net' },
+    course
+  );
 
   const sorted = divLines
     .map((line, i) => ({ line, rank: overallNetRanks[i] }))
     .sort((a, b) => {
-      if (a.rank == null && b.rank == null) return 0;
-      if (a.rank == null) return 1;
-      if (b.rank == null) return -1;
-      return a.rank - b.rank;
+      const ap = a.rank.pos;
+      const bp = b.rank.pos;
+      if (ap == null && bp == null) return 0;
+      if (ap == null) return 1;
+      if (bp == null) return -1;
+      if (ap !== bp) return ap - bp;
+      // Within the same shared position, render the count-out winner first.
+      if (a.rank.brokenByCountOut !== b.rank.brokenByCountOut) {
+        return a.rank.brokenByCountOut ? -1 : 1;
+      }
+      return 0;
     });
 
   const colCount = admin ? 12 : 11;
@@ -200,7 +243,7 @@ export function Leaderboard({ data }: { data: AppData }) {
 
       <div className="rd-card overflow-x-auto">
         <table className="rd-table">
-          <thead>
+          <thead className="[&_th]:text-center">
             <tr>
               <th rowSpan={2}></th>
               <th rowSpan={2}>Pos</th>
@@ -208,9 +251,9 @@ export function Leaderboard({ data }: { data: AppData }) {
               <th rowSpan={2} className="hidden sm:table-cell">HI</th>
               <th rowSpan={2} className="hidden sm:table-cell">HC</th>
               <th rowSpan={2} className="hidden sm:table-cell">PH</th>
-              <th colSpan={2} className="text-center">Saturday</th>
-              <th colSpan={2} className="text-center">Sunday</th>
-              <th colSpan={2} className="text-center">Total</th>
+              <th colSpan={2}>Saturday</th>
+              <th colSpan={2}>Sunday</th>
+              <th colSpan={2}>Total</th>
               {admin && <th rowSpan={2} aria-label="Edit"></th>}
             </tr>
             <tr>
@@ -231,11 +274,14 @@ export function Leaderboard({ data }: { data: AppData }) {
               </tr>
             )}
             {sorted.map(({ line, rank }) => {
-              const isExpanded = expandedSaId === line.player.saId;
+              const isExpanded = expandedSaIds.has(line.player.saId);
               const toggle = () =>
-                setExpandedSaId((curr) =>
-                  curr === line.player.saId ? null : line.player.saId
-                );
+                setExpandedSaIds((curr) => {
+                  const next = new Set(curr);
+                  if (next.has(line.player.saId)) next.delete(line.player.saId);
+                  else next.add(line.player.saId);
+                  return next;
+                });
               return (
                 <Fragment key={line.player.saId}>
                   <tr
@@ -246,8 +292,13 @@ export function Leaderboard({ data }: { data: AppData }) {
                     <td className="text-rd-ink/50 w-6">
                       <Chevron open={isExpanded} />
                     </td>
-                    <td className="font-semibold text-rd-navy">{rank ?? '—'}</td>
-                    <td>{fullName(line.player)}</td>
+                    <td className="font-semibold text-rd-navy whitespace-nowrap">
+                      <PosCell rank={rank} />
+                    </td>
+                    <td>
+                      {fullName(line.player)}
+                      {rank.brokenByCountOut && <CountOutBadge />}
+                    </td>
                     <td className="hidden sm:table-cell">{num(line.player.hi, 1)}</td>
                     <td className="hidden sm:table-cell">{num(line.hc, 1)}</td>
                     <td className="hidden sm:table-cell">{num(line.ph)}</td>

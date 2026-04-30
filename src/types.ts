@@ -67,6 +67,20 @@ export type Branding = {
   colors?: BrandingColors;
 };
 
+export type CountOutSegment = 'back-9' | 'back-6' | 'back-3';
+
+export type CountOutStep = {
+  segment: CountOutSegment;
+  /** Fraction of PH deducted from this segment when ranking by net (e.g. 0.5 for back-9). */
+  netHandicapFraction: number;
+};
+
+export type CountOutConfig = {
+  enabled: boolean;
+  /** Ordered list of tie-break steps. Default: back-9 (½ PH), back-6 (⅓), back-3 (⅙). */
+  steps: CountOutStep[];
+};
+
 export type Course = {
   club: string;
   event: string;
@@ -79,6 +93,8 @@ export type Course = {
   holes: Hole[];
   /** Optional branding — logo + colour palette. Falls back to Royal Durban defaults. */
   branding?: Branding;
+  /** Optional tie-breaker rules. Absent or `enabled:false` ⇒ ties stay shared with no c/o badge. */
+  countOut?: CountOutConfig;
 };
 
 export type Player = {

@@ -8,12 +8,15 @@ import {
   PRIZE_CATEGORIES,
   PRIZE_LABELS,
 } from '../prizes';
+import { DEFAULT_COUNT_OUT_STEPS } from '../scoring/engine';
 import { saveCourse } from '../sheets/courseAdapter';
 import { loadSheetsSettings, type SheetsSettings } from '../sheets/settings';
 import { resolveAssetUrl } from '../theme';
 import type {
   Branding,
   BrandingColors,
+  CountOutConfig,
+  CountOutSegment,
   Course,
   DivisionCode,
   DivisionConfig,
@@ -151,6 +154,79 @@ function BrandingEditor({
             </label>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+const COUNT_OUT_LABELS: Record<CountOutSegment, string> = {
+  'back-9': 'Back 9 (holes 10–18)',
+  'back-6': 'Back 6 (holes 13–18)',
+  'back-3': 'Back 3 (holes 16–18)',
+};
+
+function CountOutEditor({
+  countOut,
+  onChange,
+}: {
+  countOut: CountOutConfig | undefined;
+  onChange: (co: CountOutConfig) => void;
+}) {
+  const enabled = !!countOut?.enabled;
+  const steps = countOut?.steps ?? DEFAULT_COUNT_OUT_STEPS;
+
+  const setEnabled = (v: boolean) => onChange({ enabled: v, steps });
+  const setFraction = (segment: CountOutSegment, fraction: number) => {
+    onChange({
+      enabled,
+      steps: steps.map((s) => (s.segment === segment ? { ...s, netHandicapFraction: fraction } : s)),
+    });
+  };
+  const resetDefaults = () => onChange({ enabled, steps: DEFAULT_COUNT_OUT_STEPS });
+
+  return (
+    <div className="rd-card p-4 space-y-3">
+      <div>
+        <h2 className="text-lg text-rd-navy font-serif">Count-out (tie-breakers)</h2>
+        <p className="text-xs text-rd-ink/60 mt-1">
+          When two players share a score, count-out picks the prize winner by comparing
+          back-9, then back-6, then back-3. The position number stays tied (e.g. T1 / T1) —
+          the count-out winner gets a small <code>c/o</code> badge next to their name. For
+          net rankings, a fraction of the player's playing handicap is subtracted from each
+          segment before comparing (standard: ½, ⅓, ⅙).
+        </p>
+      </div>
+
+      <label className="inline-flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => setEnabled(e.target.checked)}
+        />
+        <span className="text-sm">Enable count-out tie-breaking</span>
+      </label>
+
+      <div
+        className={`grid grid-cols-1 sm:grid-cols-3 gap-3 ${enabled ? '' : 'opacity-50 pointer-events-none'}`}
+      >
+        {steps.map((step) => (
+          <NumField
+            key={step.segment}
+            label={`${COUNT_OUT_LABELS[step.segment]} — net HC fraction`}
+            value={step.netHandicapFraction}
+            onChange={(v) => setFraction(step.segment, v)}
+          />
+        ))}
+      </div>
+
+      <div className="text-xs">
+        <button
+          type="button"
+          className="text-rd-navy hover:underline disabled:opacity-40"
+          onClick={resetDefaults}
+        >
+          Reset to standard fractions (½, ⅓, ⅙)
+        </button>
       </div>
     </div>
   );
@@ -565,6 +641,11 @@ export function Config({ data }: { data: AppData }) {
           </table>
         </div>
       </div>
+
+      <CountOutEditor
+        countOut={draft.countOut}
+        onChange={(co) => setDraft((d) => ({ ...d, countOut: co }))}
+      />
 
       <div className="rd-card p-4">
         <div className="flex items-baseline justify-between mb-3">

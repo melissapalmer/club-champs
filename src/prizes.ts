@@ -1,4 +1,4 @@
-import type { PlayerLine } from './scoring/engine';
+import type { PlayerLine, RankScope } from './scoring/engine';
 import type { PrizeAward, PrizeCategory } from './types';
 
 export const PRIZE_CATEGORIES: PrizeCategory[] = [
@@ -29,6 +29,17 @@ export const PRIZE_PICK: Record<PrizeCategory, (l: PlayerLine) => number | null>
   overallGross: (l) => l.overall.gross,
   overallNet: (l) => l.overall.net,
   eclectic: (l) => l.eclectic.net,
+};
+
+/** Scope used to drive count-out tie-breaking for each prize category. */
+export const PRIZE_SCOPE: Record<PrizeCategory, RankScope> = {
+  satGross: { kind: 'day', day: 1, metric: 'gross' },
+  satNet: { kind: 'day', day: 1, metric: 'net' },
+  sunGross: { kind: 'day', day: 2, metric: 'gross' },
+  sunNet: { kind: 'day', day: 2, metric: 'net' },
+  overallGross: { kind: 'overall', metric: 'gross' },
+  overallNet: { kind: 'overall', metric: 'net' },
+  eclectic: { kind: 'eclectic', metric: 'net' },
 };
 
 export const DEFAULT_TOP_N = 2;

@@ -1,35 +1,69 @@
 import { useMemo } from 'react';
 import type { AppData } from '../data';
 import { fullName, num } from '../format';
-import { defaultAwards, PRIZE_LABELS, PRIZE_PICK } from '../prizes';
+import { defaultAwards, PRIZE_LABELS, PRIZE_PICK, PRIZE_SCOPE } from '../prizes';
 import {
   buildPlayerLines,
   linesByDivision,
-  rankWithTies,
+  rankWithCountOut,
   visibleDivisions,
   type PlayerLine,
+  type RankResult,
 } from '../scoring/engine';
-import type { DivisionConfig } from '../types';
+import type { Course, DivisionConfig, PrizeCategory } from '../types';
 
 function podium(
   lines: PlayerLine[],
-  pick: (l: PlayerLine) => number | null,
-  topN: number
+  category: PrizeCategory,
+  topN: number,
+  course: Course
 ) {
-  const values = lines.map(pick);
-  const ranks = rankWithTies(values);
+  const ranks = rankWithCountOut(lines, PRIZE_SCOPE[category], course);
+  const pick = PRIZE_PICK[category];
   return lines
-    .map((line, i) => ({ line, value: values[i], rank: ranks[i] }))
-    .filter((r) => r.rank != null && r.rank <= topN)
-    .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
+    .map((line, i) => ({ line, value: pick(line), rank: ranks[i] }))
+    .filter((r) => r.rank.pos != null && r.rank.pos <= topN)
+    .sort((a, b) => {
+      const ap = a.rank.pos ?? 0;
+      const bp = b.rank.pos ?? 0;
+      if (ap !== bp) return ap - bp;
+      // Within a shared position, render the count-out winner first.
+      if (a.rank.brokenByCountOut !== b.rank.brokenByCountOut) {
+        return a.rank.brokenByCountOut ? -1 : 1;
+      }
+      return 0;
+    });
+}
+
+function PosBadge({ rank }: { rank: RankResult }) {
+  if (rank.pos == null) return null;
+  return (
+    <>
+      {rank.tied && 'T'}
+      {rank.pos}.
+    </>
+  );
+}
+
+function CountOutBadge() {
+  return (
+    <span
+      className="ml-1.5 align-middle text-[10px] uppercase tracking-wide px-1 rounded bg-rd-gold/20 text-rd-navy"
+      title="Won the count-out tie-break"
+    >
+      c/o
+    </span>
+  );
 }
 
 function DivisionResults({
   division,
   lines,
+  course,
 }: {
   division: DivisionConfig;
   lines: PlayerLine[];
+  course: Course;
 }) {
   const awards = division.prizes?.awards ?? defaultAwards();
 
@@ -46,7 +80,7 @@ function DivisionResults({
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {awards.map(({ category, topN }) => {
-            const winners = podium(lines, PRIZE_PICK[category], topN);
+            const winners = podium(lines, category, topN, course);
             return (
               <div key={category}>
                 <h3 className="text-sm uppercase tracking-wide text-rd-gold mb-1 font-sans font-semibold flex items-baseline justify-between">
@@ -63,10 +97,11 @@ function DivisionResults({
                         className="flex items-baseline justify-between text-sm"
                       >
                         <span>
-                          <span className="font-semibold text-rd-navy mr-2">
-                            {w.rank}.
+                          <span className="font-semibold text-rd-navy mr-2 whitespace-nowrap">
+                            <PosBadge rank={w.rank} />
                           </span>
                           {fullName(w.line.player)}
+                          {w.rank.brokenByCountOut && <CountOutBadge />}
                         </span>
                         <span className="font-medium tabular-nums">
                           {num(w.value, category === 'eclectic' ? 1 : 0)}
@@ -100,7 +135,12 @@ export function Results({ data }: { data: AppData }) {
       </p>
       <div className="space-y-4">
         {visibleDivisions(course).map((d) => (
-          <DivisionResults key={d.code} division={d} lines={byDiv.get(d.code) ?? []} />
+          <DivisionResults
+            key={d.code}
+            division={d}
+            lines={byDiv.get(d.code) ?? []}
+            course={course}
+          />
         ))}
       </div>
     </section>

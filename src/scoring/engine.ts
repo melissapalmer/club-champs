@@ -1,4 +1,13 @@
-import type { Course, DivisionConfig, DayScore, Player, Tee, TeeRatings } from '../types';
+import type {
+  Course,
+  CountOutSegment,
+  CountOutStep,
+  DivisionConfig,
+  DayScore,
+  Player,
+  Tee,
+  TeeRatings,
+} from '../types';
 
 /** Pick the cr/slope appropriate for the event gender from a tee. */
 export function teeRatings(tee: Tee, gender: Course['gender']): TeeRatings {
@@ -173,6 +182,167 @@ export function buildPlayerLines(
       eclectic: { holes: eclHoles, gross: eclGross, net: eclNet },
     };
   });
+}
+
+/** Standard fractions (USGA/CONGU): ½ PH off back-9, ⅓ off back-6, ⅙ off back-3. */
+export const DEFAULT_COUNT_OUT_STEPS: CountOutStep[] = [
+  { segment: 'back-9', netHandicapFraction: 1 / 2 },
+  { segment: 'back-6', netHandicapFraction: 1 / 3 },
+  { segment: 'back-3', netHandicapFraction: 1 / 6 },
+];
+
+const SEGMENT_RANGE: Record<CountOutSegment, [number, number]> = {
+  'back-9': [9, 18],
+  'back-6': [12, 18],
+  'back-3': [15, 18],
+};
+
+/**
+ * Sum a tail-of-round segment for one player, optionally net-adjusted.
+ * `netFraction` null ⇒ gross sum; number ⇒ subtract `fraction * ph` from the sum.
+ * Returns null if any hole in the window is unentered (count-out can't decide on partial data)
+ * or if `ph` is null while a net fraction was requested.
+ */
+export function countOutSegmentValue(
+  holes: (number | null)[],
+  segment: CountOutSegment,
+  ph: number | null,
+  netFraction: number | null
+): number | null {
+  const [start, end] = SEGMENT_RANGE[segment];
+  const window = holes.slice(start, end);
+  if (window.length !== end - start) return null;
+  if (window.some((h) => h == null)) return null;
+  const gross = (window as number[]).reduce((a, b) => a + b, 0);
+  if (netFraction == null) return gross;
+  if (ph == null) return null;
+  return gross - netFraction * ph;
+}
+
+export type RankScope =
+  | { kind: 'day'; day: 1 | 2; metric: 'gross' | 'net' }
+  | { kind: 'overall'; metric: 'gross' | 'net' }
+  | { kind: 'eclectic'; metric: 'gross' | 'net' };
+
+export type RankResult = {
+  /** Score-tied players share the same number; null if no primary value. */
+  pos: number | null;
+  /** True for every player in a multi-player tie group (drives the "T" prefix). */
+  tied: boolean;
+  /** True on the player count-out picked as the prize winner inside a tie group. */
+  brokenByCountOut: boolean;
+};
+
+function primaryValue(line: PlayerLine, scope: RankScope): number | null {
+  switch (scope.kind) {
+    case 'day':
+      return scope.day === 1
+        ? scope.metric === 'gross'
+          ? line.sat.gross
+          : line.sat.net
+        : scope.metric === 'gross'
+          ? line.sun.gross
+          : line.sun.net;
+    case 'overall':
+      return scope.metric === 'gross' ? line.overall.gross : line.overall.net;
+    case 'eclectic':
+      return scope.metric === 'gross' ? line.eclectic.gross : line.eclectic.net;
+  }
+}
+
+function holesForCountOut(line: PlayerLine, scope: RankScope): (number | null)[] {
+  switch (scope.kind) {
+    case 'day':
+      return scope.day === 1 ? line.sat.holes : line.sun.holes;
+    // Standard practice for 36-hole events: tie-break on the most recent round.
+    case 'overall':
+      return line.sun.holes;
+    case 'eclectic':
+      return line.eclectic.holes;
+  }
+}
+
+/**
+ * Rank a list of players for one scope, applying count-out tie-breaking when
+ * `course.countOut?.enabled`. Returned array is parallel to `lines`.
+ *
+ * Position numbers are NOT shifted by count-out: score-tied players keep the
+ * same `pos` and `tied: true`. The count-out winner is the only one with
+ * `brokenByCountOut: true` inside that group — that's how the UI knows to
+ * render a "c/o" badge.
+ *
+ * If count-out can't break the tie at any step (all candidates equal), no
+ * `brokenByCountOut` is set; the group remains a genuine tie.
+ */
+export function rankWithCountOut(
+  lines: PlayerLine[],
+  scope: RankScope,
+  course: Course
+): RankResult[] {
+  const values = lines.map((l) => primaryValue(l, scope));
+  const indexed = values
+    .map((v, i) => ({ v, i }))
+    .filter((x): x is { v: number; i: number } => x.v != null);
+  indexed.sort((a, b) => a.v - b.v);
+
+  const out: RankResult[] = lines.map(() => ({
+    pos: null,
+    tied: false,
+    brokenByCountOut: false,
+  }));
+
+  type Group = { pos: number; indices: number[] };
+  const groups: Group[] = [];
+  for (let pos = 0; pos < indexed.length; pos++) {
+    const { v, i } = indexed[pos];
+    const prev = pos > 0 ? indexed[pos - 1].v : null;
+    if (prev != null && prev === v) {
+      groups[groups.length - 1].indices.push(i);
+    } else {
+      groups.push({ pos: pos + 1, indices: [i] });
+    }
+  }
+
+  const co = course.countOut;
+  const isNet = scope.metric === 'net';
+
+  for (const g of groups) {
+    const tied = g.indices.length > 1;
+    for (const idx of g.indices) {
+      out[idx].pos = g.pos;
+      out[idx].tied = tied;
+    }
+    if (!tied || !co?.enabled || co.steps.length === 0) continue;
+
+    let candidates = g.indices;
+    for (const step of co.steps) {
+      const netFraction = isNet ? step.netHandicapFraction : null;
+      const segValues = candidates.map((idx) => {
+        const line = lines[idx];
+        return {
+          idx,
+          v: countOutSegmentValue(
+            holesForCountOut(line, scope),
+            step.segment,
+            line.ph,
+            netFraction
+          ),
+        };
+      });
+      // If any candidate's segment is incomplete, we can't fairly decide here —
+      // try the next, smaller window which may be fully entered.
+      if (segValues.some((sv) => sv.v == null)) continue;
+      const min = Math.min(...segValues.map((sv) => sv.v as number));
+      const survivors = segValues.filter((sv) => sv.v === min);
+      if (survivors.length === 1) {
+        out[survivors[0].idx].brokenByCountOut = true;
+        break;
+      }
+      candidates = survivors.map((sv) => sv.idx);
+    }
+  }
+
+  return out;
 }
 
 export function linesByDivision(lines: PlayerLine[]): Map<string, PlayerLine[]> {
