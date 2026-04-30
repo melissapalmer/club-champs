@@ -5,6 +5,7 @@ import {
   courseHandicap,
   divisionFor,
   playingHandicap,
+  stablefordHoles,
   stablefordTotal,
   teeRatings,
 } from '../scoring/engine';
@@ -65,6 +66,30 @@ export function ScoreEntryPanel({
     [players, saId]
   );
 
+  // Compute PH for every player up-front so the dropdown can show it
+  // alongside each name (preferred over HI for organisers entering scores).
+  const phByPlayer = useMemo(() => {
+    const map = new Map<string, number | null>();
+    for (const p of players) {
+      const division = divisionFor(p, data.course);
+      const tee = division ? data.course.tees[division.tee] : undefined;
+      if (!division || !tee) {
+        map.set(p.saId, null);
+        continue;
+      }
+      const ratings = teeRatings(tee, data.course.gender);
+      const hc = courseHandicap(
+        p.hi,
+        ratings.slope,
+        ratings.cr,
+        tee.par,
+        data.course.maxHandicap
+      );
+      map.set(p.saId, playingHandicap(hc, division.handicapPct));
+    }
+    return map;
+  }, [players, data.course]);
+
   // Look up the player's playing handicap (and division format) so we can show
   // net or stableford points alongside gross.
   const { ph, isStableford } = useMemo(() => {
@@ -115,9 +140,27 @@ export function ScoreEntryPanel({
     : null;
   const total = front9Sum != null && back9Sum != null ? front9Sum + back9Sum : null;
   const net = total != null && ph != null ? total - ph : null;
-  // Stableford running total — null until PH is known. Partial rounds count
+  // Stableford running totals — null until PH is known. Partial rounds count
   // unentered holes as 0 (intentional: gives organisers a live read-out).
+  const stbHoles = isStableford ? stablefordHoles(holes, ph, data.course) : null;
   const stablefordPts = isStableford ? stablefordTotal(holes, ph, data.course) : null;
+  const front9Pts = stbHoles
+    ? stbHoles.slice(0, 9).reduce<number>((a, b) => a + (b ?? 0), 0)
+    : null;
+  const back9Pts = stbHoles
+    ? stbHoles.slice(9).reduce<number>((a, b) => a + (b ?? 0), 0)
+    : null;
+
+  // Per-hole par + stroke index (gender-picked) for the score entry grid.
+  // Only used when the active division is stableford — handicap strokes are
+  // distributed by SI, so seeing both gives organisers the full picture.
+  const courseHoles = data.course.holes ?? [];
+  const parAt = (i: number) => courseHoles[i]?.par ?? null;
+  const siAt = (i: number) => {
+    const h = courseHoles[i];
+    if (!h) return null;
+    return data.course.gender === 'women' ? h.siWomen : h.siMen;
+  };
 
   const onSave = async () => {
     if (!player) return;
@@ -159,11 +202,14 @@ export function ScoreEntryPanel({
               onChange={(e) => setSaId(e.target.value)}
             >
               <option value="">— choose a player —</option>
-              {players.map((p) => (
-                <option key={p.saId} value={p.saId}>
-                  {fullName(p)} (HI {p.hi})
-                </option>
-              ))}
+              {players.map((p) => {
+                const playerPh = phByPlayer.get(p.saId);
+                return (
+                  <option key={p.saId} value={p.saId}>
+                    {fullName(p)} (PH {playerPh ?? '—'})
+                  </option>
+                );
+              })}
             </select>
           </label>
         ) : (
@@ -172,7 +218,7 @@ export function ScoreEntryPanel({
             <div className="border rounded px-2 py-2 mt-1 bg-rd-cream/40 text-rd-ink">
               {player ? fullName(player) : '—'}
               {player && (
-                <span className="text-rd-ink/60"> · HI {player.hi}</span>
+                <span className="text-rd-ink/60"> · PH {phByPlayer.get(player.saId) ?? '—'}</span>
               )}
             </div>
           </div>
@@ -203,44 +249,84 @@ export function ScoreEntryPanel({
         <>
           <div className="rd-card p-4 mb-4">
             <div className="grid grid-cols-9 gap-2 mb-3">
-              {HOLE_NUMS.slice(0, 9).map((h) => (
-                <div key={h}>
-                  <label className="text-xs text-rd-ink/60 block text-center">{h}</label>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min={1}
-                    max={20}
-                    className="w-full border rounded px-1 py-1.5 text-center text-base tabular-nums"
-                    value={holes[h - 1] ?? ''}
-                    onChange={(e) => updateHole(h - 1, e.target.value)}
-                  />
-                </div>
-              ))}
+              {HOLE_NUMS.slice(0, 9).map((h) => {
+                const i = h - 1;
+                return (
+                  <div key={h}>
+                    <label className="text-xs text-rd-ink/60 block text-center">{h}</label>
+                    {isStableford && (
+                      <div className="text-[10px] text-rd-ink/50 text-center leading-tight mb-0.5 tabular-nums">
+                        <div>Par {parAt(i) ?? '·'}</div>
+                        <div>SI {siAt(i) ?? '·'}</div>
+                      </div>
+                    )}
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      max={20}
+                      className="w-full border rounded px-1 py-1.5 text-center text-base tabular-nums"
+                      value={holes[i] ?? ''}
+                      onChange={(e) => updateHole(i, e.target.value)}
+                    />
+                    {isStableford && (
+                      <div className="text-xs text-center mt-1 tabular-nums text-rd-navy font-semibold">
+                        {stbHoles?.[i] ?? '·'} pt
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
             <div className="text-right text-sm mb-3 text-rd-ink/70">
               Out: <span className="font-semibold">{front9Sum ?? '—'}</span>
+              {isStableford && (
+                <>
+                  {' · '}Pts:{' '}
+                  <span className="font-semibold text-rd-navy">{front9Pts ?? '—'}</span>
+                </>
+              )}
             </div>
             <div className="grid grid-cols-9 gap-2 mb-3">
-              {HOLE_NUMS.slice(9).map((h) => (
-                <div key={h}>
-                  <label className="text-xs text-rd-ink/60 block text-center">{h}</label>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min={1}
-                    max={20}
-                    className="w-full border rounded px-1 py-1.5 text-center text-base tabular-nums"
-                    value={holes[h - 1] ?? ''}
-                    onChange={(e) => updateHole(h - 1, e.target.value)}
-                  />
-                </div>
-              ))}
+              {HOLE_NUMS.slice(9).map((h) => {
+                const i = h - 1;
+                return (
+                  <div key={h}>
+                    <label className="text-xs text-rd-ink/60 block text-center">{h}</label>
+                    {isStableford && (
+                      <div className="text-[10px] text-rd-ink/50 text-center leading-tight mb-0.5 tabular-nums">
+                        <div>Par {parAt(i) ?? '·'}</div>
+                        <div>SI {siAt(i) ?? '·'}</div>
+                      </div>
+                    )}
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      max={20}
+                      className="w-full border rounded px-1 py-1.5 text-center text-base tabular-nums"
+                      value={holes[i] ?? ''}
+                      onChange={(e) => updateHole(i, e.target.value)}
+                    />
+                    {isStableford && (
+                      <div className="text-xs text-center mt-1 tabular-nums text-rd-navy font-semibold">
+                        {stbHoles?.[i] ?? '·'} pt
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
             <div className="flex flex-wrap justify-between items-baseline gap-x-4 gap-y-1 text-sm">
               <span className="text-rd-ink/70">{filledCount}/18 holes entered</span>
               <span className="text-rd-ink/70">
                 In: <span className="font-semibold">{back9Sum ?? '—'}</span>
+                {isStableford && (
+                  <>
+                    {' · '}Pts:{' '}
+                    <span className="font-semibold text-rd-navy">{back9Pts ?? '—'}</span>
+                  </>
+                )}
                 {' · '}
                 Gross: <span className="font-semibold text-rd-navy">{total ?? '—'}</span>
                 {' · '}
