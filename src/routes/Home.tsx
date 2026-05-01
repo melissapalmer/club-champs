@@ -30,17 +30,12 @@ export function Home({ data }: { data: AppData }) {
     {
       to: '/scores',
       title: 'Scores',
-      desc: 'Leaderboard division-by-division.',
-    },
-    {
-      to: '/eclectic',
-      title: 'Eclectic',
-      desc: 'Best score per hole across both rounds.',
+      desc: 'Leaderboard division-by-division, with eclectic.',
     },
     {
       to: '/results',
-      title: 'Results',
-      desc: 'Prize winners by division and category.',
+      title: 'Prize Winners',
+      desc: 'By division and category.',
     },
     matchPlayShown && {
       to: '/match-play',

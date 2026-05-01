@@ -151,9 +151,9 @@ export function Results({ data }: { data: AppData }) {
 
   return (
     <section>
-      <h1 className="text-2xl text-rd-navy mb-1">Results</h1>
+      <h1 className="text-2xl text-rd-navy mb-1">Prize Winners</h1>
       <p className="text-sm text-rd-ink/60 mb-4">
-        Prize winners by division and category.
+        By division and category.
       </p>
       <div className={`grid gap-4 print:gap-2 print-color-exact ${gridCols}`}>
         {divs.map((d) => (
