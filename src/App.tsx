@@ -11,6 +11,7 @@ import { Leaderboard } from './routes/Leaderboard';
 import { ManagePlayers } from './routes/ManagePlayers';
 import { Players } from './routes/Players';
 import { Results } from './routes/Results';
+import { TeeTimes } from './routes/TeeTimes';
 import { loadSheetsSettings } from './sheets/settings';
 import { useApplyBranding } from './theme';
 
@@ -72,10 +73,11 @@ export function App() {
   return (
     <>
       <Routes>
-        <Route element={<Layout course={data?.course ?? null} />}>
+        <Route element={<Layout course={data?.course ?? null} teeTimes={data?.teeTimes ?? []} />}>
           <Route path="/" element={blocker ?? <Leaderboard data={data!} />} />
           <Route path="/eclectic" element={blocker ?? <Eclectic data={data!} />} />
           <Route path="/results" element={blocker ?? <Results data={data!} />} />
+          <Route path="/tee-times" element={blocker ?? <TeeTimes data={data!} />} />
           <Route path="/players" element={blocker ?? <Players data={data!} />} />
           <Route path="/enter" element={blocker ?? <Enter data={data!} />} />
           <Route path="/manage-players" element={blocker ?? <ManagePlayers data={data!} />} />

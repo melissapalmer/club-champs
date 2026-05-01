@@ -35,6 +35,7 @@ The Sheet is published "to web" so spectators read it directly via `gviz` CSV �
   - **Scores:** `saId | day | h1 | h2 | h3 | h4 | h5 | h6 | h7 | h8 | h9 | h10 | h11 | h12 | h13 | h14 | h15 | h16 | h17 | h18`
   - **Course:** `key | value`
 - Optionally seed the Course tab with rows for `club`, `event`, `gender`, `maxHandicap`, `eclecticHandicapPct`. Editing these later is fine via the Config tab in the app.
+- A fourth tab — **TeeTimes** — is created and managed by the app the first time you generate a draw (see "Tee Times" below). You don't need to make it yourself.
 - **File → Share → Publish to web → Entire document → Comma-separated values → Publish.** This makes the read URLs work for spectators.
 
 ### 2. Deploy the Apps Script web app
@@ -69,6 +70,21 @@ The admin URL key activates extra tabs in the nav.
   - **Manage Players** — add / edit / remove players (writes directly to the Players tab).
   - **Config** — edit course rules, tees, divisions, holes, prizes, branding (writes the Course tab).
 - The **Scores** tab also gains a pencil icon on each row when admin — clicking opens an in-page modal to edit that player's hole-by-hole scores for either day.
+
+## Tee Times (optional, off by default)
+
+Auto-generates the day's draw and publishes it to a public **Tee Times** tab in the site nav.
+
+- Open **Config** → **Tee Times** card (admin only).
+- Tick **Enable Tee Times tab**, set **group size** (2 / 3 / 4-balls), **interval** (mins), and the **Day 1 / Day 2 start times**. Save.
+- **Generate Day 1 draw** — orders the field by HI ascending within each division (best players off first), packs into groups, writes to the `TeeTimes` Sheet tab. The Day 2 button is disabled until at least one Day-1 score is entered.
+- **Generate Day 2 draw** — same but ordered by Day-1 standings (worst-first, best-last) using each division's metric (net for medal, points for stableford). DNS players go to the start of their block.
+- Stableford and medal players never share a group — they're packed into separate format blocks.
+- Generation overwrites only the requested day's rows; the other day stays put.
+
+The `TeeTimes` Sheet tab is created automatically on first generation with columns `day | time | saId | name`. The `name` column is a snapshot at generation time for human readability — the website always resolves names live from the Players tab, so renames flow through without regenerating.
+
+When the feature flag is off, the Tee Times nav item is hidden and the route shows a "not enabled" message.
 
 ## Branding
 

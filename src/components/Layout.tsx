@@ -1,25 +1,56 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useIsAdmin } from '../admin';
 import { resolveAssetUrl } from '../theme';
-import type { Course } from '../types';
+import type { Course, TeeTime } from '../types';
 
-type NavItem = { to: string; label: string; end: boolean; adminOnly?: boolean };
+type NavCtx = { course: Course | null; teeTimes: TeeTime[] };
+
+type NavItem = {
+  to: string;
+  label: string;
+  end: boolean;
+  adminOnly?: boolean;
+  /** When set, this nav item is only shown if the predicate is true. */
+  visibleWhen?: (ctx: NavCtx) => boolean;
+};
 
 // Score Entry is intentionally not in the public nav — reach it via the
 // bookmarked URL with the access key (see /enter route). Config is visible
 // only when admin mode is active in this browser session.
 const NAV: NavItem[] = [
-  { to: '/players', label: 'Players', end: false },
+  {
+    to: '/tee-times',
+    label: 'Tee Times',
+    end: false,
+    // Show the tab if the admin enabled it OR if any tee times have actually
+    // been generated — that way an admin who clicked Generate but forgot to
+    // save the Course flag still gets the menu, and so does any browser that
+    // sees data in the Sheet without the flag flipped (legacy / mid-flight).
+    visibleWhen: ({ course, teeTimes }) =>
+      !!course?.teeTimes?.enabled || teeTimes.length > 0,
+  },
   { to: '/', label: 'Scores', end: true },
   { to: '/eclectic', label: 'Eclectic', end: false },
   { to: '/results', label: 'Results', end: false },
+  { to: '/players', label: 'Players', end: false, adminOnly: true },
   { to: '/manage-players', label: 'Manage Players', end: false, adminOnly: true },
   { to: '/config', label: 'Config', end: false, adminOnly: true },
 ];
 
-export function Layout({ course }: { course: Course | null }) {
+export function Layout({
+  course,
+  teeTimes = [],
+}: {
+  course: Course | null;
+  teeTimes?: TeeTime[];
+}) {
   const admin = useIsAdmin();
-  const items = NAV.filter((item) => !item.adminOnly || admin);
+  const ctx: NavCtx = { course, teeTimes };
+  const items = NAV.filter(
+    (item) =>
+      (!item.adminOnly || admin) &&
+      (item.visibleWhen == null || item.visibleWhen(ctx))
+  );
   return (
     <div className="min-h-screen flex flex-col">
       <header className="bg-rd-navy text-white">

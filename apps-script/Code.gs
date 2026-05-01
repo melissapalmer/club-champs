@@ -36,12 +36,14 @@ const SHARED_SECRET = 'CHANGE_ME';
 const PLAYERS_TAB = 'Players';
 const SCORES_TAB = 'Scores';
 const COURSE_TAB = 'Course';
+const TEE_TIMES_TAB = 'TeeTimes';
 
 const PLAYERS_HEADERS = ['firstName', 'lastName', 'saId', 'hi', 'division'];
 const SCORE_HOLE_COLS = Array.from({ length: 18 }, function (_, i) {
   return 'h' + (i + 1);
 });
 const SCORES_HEADERS = ['saId', 'day'].concat(SCORE_HOLE_COLS);
+const TEE_TIMES_HEADERS = ['day', 'time', 'saId', 'name'];
 
 function doPost(e) {
   try {
@@ -63,6 +65,9 @@ function doPost(e) {
         break;
       case 'saveCourse':
         result = saveCourse(body.payload);
+        break;
+      case 'saveTeeTimes':
+        result = saveTeeTimes(body.payload);
         break;
       default:
         return jsonResponse({ ok: false, error: 'unknown_action: ' + action }, 400);
@@ -213,4 +218,60 @@ function saveCourse(payload) {
   });
   sheet.getRange(1, 1, rows.length, 2).setValues(rows);
   return { rows: rows.length - 1 };
+}
+
+// ---- Tee Times save (day-scoped replace) -------------------------------
+
+/**
+ * Overwrite the rows for one day in the TeeTimes tab. The other day's rows
+ * are preserved so generating Day 1 doesn't nuke Day 2 (and vice versa).
+ *
+ * Payload: { day: 1|2, rows: [{ time, saId, name }, ...] }
+ *
+ * Creates the tab + header row on first call.
+ */
+function saveTeeTimes(payload) {
+  if (!payload || (payload.day !== 1 && payload.day !== 2)) {
+    throw new Error('saveTeeTimes needs { day: 1|2, rows: [...] }');
+  }
+  if (!Array.isArray(payload.rows)) {
+    throw new Error('saveTeeTimes needs an array of rows');
+  }
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  let sheet = ss.getSheetByName(TEE_TIMES_TAB);
+  if (!sheet) {
+    sheet = ss.insertSheet(TEE_TIMES_TAB);
+    sheet.getRange(1, 1, 1, TEE_TIMES_HEADERS.length).setValues([TEE_TIMES_HEADERS]);
+  }
+  ensureHeaders(sheet, TEE_TIMES_HEADERS);
+
+  const lastRow = sheet.getLastRow();
+  const dayCol = TEE_TIMES_HEADERS.indexOf('day') + 1;
+
+  // Walk bottom-up deleting rows where `day` matches the payload day. Bottom-up
+  // so deleteRow's row-index shift doesn't affect later iterations.
+  if (lastRow >= 2) {
+    const days = sheet.getRange(2, dayCol, lastRow - 1, 1).getValues();
+    for (let i = days.length - 1; i >= 0; i--) {
+      if (Number(days[i][0]) === Number(payload.day)) {
+        sheet.deleteRow(i + 2);
+      }
+    }
+  }
+
+  // Append the new rows for this day.
+  if (payload.rows.length > 0) {
+    const newRows = payload.rows.map(function (r) {
+      return [
+        payload.day,
+        String(r.time || ''),
+        String(r.saId || ''),
+        String(r.name || ''),
+      ];
+    });
+    sheet
+      .getRange(sheet.getLastRow() + 1, 1, newRows.length, TEE_TIMES_HEADERS.length)
+      .setValues(newRows);
+  }
+  return { day: payload.day, rows: payload.rows.length };
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useIsAdmin } from '../admin';
 import { SheetSettingsDialog } from '../components/SheetSettingsDialog';
+import { Tabs, type TabItem } from '../components/Tabs';
 import type { AppData } from '../data';
 import {
   CATEGORIES_FOR_FORMAT,
@@ -8,9 +9,11 @@ import {
   defaultAwards,
   PRIZE_LABELS,
 } from '../prizes';
-import { DEFAULT_COUNT_OUT_STEPS } from '../scoring/engine';
+import { buildPlayerLines, DEFAULT_COUNT_OUT_STEPS } from '../scoring/engine';
+import { generateDraw } from '../scoring/teeTimes';
 import { saveCourse } from '../sheets/courseAdapter';
 import { loadSheetsSettings, type SheetsSettings } from '../sheets/settings';
+import { saveTeeTimes } from '../sheets/teeTimesAdapter';
 import { resolveAssetUrl } from '../theme';
 import type {
   Branding,
@@ -24,6 +27,7 @@ import type {
   PrizeAward,
   PrizeCategory,
   PrizeConfig,
+  TeeTimeConfig,
 } from '../types';
 
 const COLOR_KEYS: { key: keyof BrandingColors; label: string; fallback: string }[] = [
@@ -233,6 +237,137 @@ function CountOutEditor({
   );
 }
 
+function TeeTimesEditor({
+  teeTimes,
+  onChange,
+  onGenerate,
+  generateStatus,
+  hasDay1Scores,
+}: {
+  teeTimes: TeeTimeConfig | undefined;
+  onChange: (tt: TeeTimeConfig) => void;
+  onGenerate: (day: 1 | 2) => void;
+  generateStatus: { kind: 'idle' | 'busy' | 'ok' | 'err'; msg?: string };
+  hasDay1Scores: boolean;
+}) {
+  const enabled = !!teeTimes?.enabled;
+  const groupSize = teeTimes?.groupSize ?? 4;
+  const intervalMinutes = teeTimes?.intervalMinutes ?? 10;
+  const day1Start = teeTimes?.day1Start ?? '08:00';
+  const day2Start = teeTimes?.day2Start ?? '08:00';
+
+  const patch = (next: Partial<TeeTimeConfig>) =>
+    onChange({ enabled, groupSize, intervalMinutes, day1Start, day2Start, ...next });
+
+  return (
+    <div className="rd-card p-4 space-y-3">
+      <div>
+        <h2 className="text-lg text-rd-navy font-serif">Tee Times</h2>
+        <p className="text-xs text-rd-ink/60 mt-1">
+          Auto-generates a draw and writes it to the <code>TeeTimes</code> Sheet
+          tab. <strong>Day 1</strong> orders by HI ascending (best players off
+          first); <strong>Day 2</strong> by Day-1 standing (worst first, best
+          last — leaders home in the final group). Stableford and medal players
+          never share a group.
+        </p>
+      </div>
+
+      <label className="inline-flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => patch({ enabled: e.target.checked })}
+        />
+        <span className="text-sm">Enable Tee Times tab</span>
+      </label>
+
+      <div
+        className={`grid grid-cols-2 sm:grid-cols-4 gap-3 ${enabled ? '' : 'opacity-50 pointer-events-none'}`}
+      >
+        <label className="block col-span-2 sm:col-span-1">
+          <span className="text-xs text-rd-ink/60 block">Group size</span>
+          <select
+            className="w-full border rounded px-2 py-1 mt-0.5"
+            value={String(groupSize)}
+            onChange={(e) => patch({ groupSize: Number(e.target.value) as 2 | 3 | 4 })}
+          >
+            <option value="2">2-balls</option>
+            <option value="3">3-balls</option>
+            <option value="4">4-balls</option>
+          </select>
+        </label>
+        <NumField
+          label="Interval (mins)"
+          value={intervalMinutes}
+          onChange={(v) => patch({ intervalMinutes: v })}
+        />
+        <label className="block">
+          <span className="text-xs text-rd-ink/60 block">Day 1 start</span>
+          <input
+            type="time"
+            className="w-full border rounded px-2 py-1 mt-0.5 tabular-nums"
+            value={day1Start}
+            onChange={(e) => patch({ day1Start: e.target.value })}
+          />
+        </label>
+        <label className="block">
+          <span className="text-xs text-rd-ink/60 block">Day 2 start</span>
+          <input
+            type="time"
+            className="w-full border rounded px-2 py-1 mt-0.5 tabular-nums"
+            value={day2Start}
+            onChange={(e) => patch({ day2Start: e.target.value })}
+          />
+        </label>
+      </div>
+
+      {enabled && (
+        <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-rd-cream/60 mt-1">
+          <span className="text-xs text-rd-ink/60 block w-full">
+            Generation overwrites the requested day's rows in the Sheet; the
+            other day stays put. Save course settings first if you've changed
+            anything above.
+          </span>
+          <button
+            type="button"
+            className="px-3 py-1.5 text-sm bg-rd-navy text-white rounded font-medium disabled:opacity-50"
+            disabled={generateStatus.kind === 'busy'}
+            onClick={() => onGenerate(1)}
+          >
+            Generate Day 1 draw
+          </button>
+          <button
+            type="button"
+            className="px-3 py-1.5 text-sm bg-rd-navy text-white rounded font-medium disabled:opacity-40"
+            disabled={generateStatus.kind === 'busy' || !hasDay1Scores}
+            onClick={() => onGenerate(2)}
+            title={
+              hasDay1Scores
+                ? undefined
+                : 'Enter at least one Day-1 score before generating Day 2 — the order needs standings.'
+            }
+          >
+            Generate Day 2 draw
+          </button>
+          {generateStatus.msg && (
+            <span
+              className={`text-sm ${
+                generateStatus.kind === 'err'
+                  ? 'text-red-700'
+                  : generateStatus.kind === 'ok'
+                    ? 'text-green-700'
+                    : 'text-rd-ink/70'
+              }`}
+            >
+              {generateStatus.msg}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PrizesEditor({
   prizes,
   format,
@@ -341,8 +476,21 @@ export function Config({ data }: { data: AppData }) {
   const [status, setStatus] = useState<{ kind: 'idle' | 'busy' | 'ok' | 'err'; msg?: string }>({
     kind: 'idle',
   });
+  const [teeTimesStatus, setTeeTimesStatus] = useState<{
+    kind: 'idle' | 'busy' | 'ok' | 'err';
+    msg?: string;
+  }>({ kind: 'idle' });
   const [cfg, setCfg] = useState<SheetsSettings | null>(loadSheetsSettings());
   const [showSettings, setShowSettings] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>('event');
+
+  const CONFIG_TABS: TabItem[] = [
+    { id: 'event', label: 'Event' },
+    { id: 'course', label: 'Course' },
+    { id: 'divisions', label: 'Divisions' },
+    { id: 'rules', label: 'Rules' },
+    { id: 'branding', label: 'Branding' },
+  ];
 
   // Reset the draft if the underlying data refreshes (e.g. after a save).
   useEffect(() => {
@@ -429,6 +577,48 @@ export function Config({ data }: { data: AppData }) {
 
   const totalHolePar = (draft.holes ?? []).reduce((a, h) => a + (h?.par ?? 0), 0);
 
+  const hasDay1Scores = data.scores.some(
+    (s) => s.day === 1 && s.holes.some((h) => h != null)
+  );
+
+  const handleGenerateTeeTimes = async (day: 1 | 2) => {
+    const c = loadSheetsSettings();
+    if (!c) {
+      setTeeTimesStatus({
+        kind: 'err',
+        msg: 'No Sheet configured. Open Settings and set Sheet ID + Apps Script URL.',
+      });
+      return;
+    }
+    if (!draft.teeTimes?.enabled) {
+      setTeeTimesStatus({ kind: 'err', msg: 'Enable Tee Times above first.' });
+      return;
+    }
+    const ok = window.confirm(
+      `This will overwrite the Day ${day} tee times in the Sheet. Continue?`
+    );
+    if (!ok) return;
+    setTeeTimesStatus({ kind: 'busy', msg: `Generating Day ${day}…` });
+    try {
+      // Use the live Course from `data` rather than `draft` so a player who
+      // hasn't saved their settings tweaks doesn't get a draw against a
+      // stale config. Generation reads from the source of truth.
+      const lines = buildPlayerLines(data.players, data.scores, data.course);
+      const rows = generateDraw(day, lines, data.course, draft.teeTimes);
+      await saveTeeTimes(c, day, rows);
+      setTeeTimesStatus({
+        kind: 'ok',
+        msg: `Day ${day} draw saved (${rows.length} rows). Spectators see it on the next refresh (~15 s).`,
+      });
+      await data.reload();
+    } catch (e) {
+      setTeeTimesStatus({
+        kind: 'err',
+        msg: e instanceof Error ? e.message : String(e),
+      });
+    }
+  };
+
   const onSave = async () => {
     const c = loadSheetsSettings();
     if (!c) {
@@ -456,8 +646,8 @@ export function Config({ data }: { data: AppData }) {
         <div>
           <h1 className="text-2xl text-rd-navy mb-1">Config</h1>
           <p className="text-sm text-rd-ink/60">
-            Edit course rules and division settings. Saving commits{' '}
-            <code>public/data/course.json</code> via the configured GitHub token.
+            Event setup, divisions, tournament rules, and branding. Save changes
+            below to commit them to the Course tab in your Sheet.
           </p>
         </div>
         <button
@@ -468,6 +658,9 @@ export function Config({ data }: { data: AppData }) {
         </button>
       </div>
 
+      <Tabs tabs={CONFIG_TABS} active={activeTab} onChange={setActiveTab} />
+
+      {activeTab === 'event' && (
       <div className="rd-card p-4 space-y-3">
         <h2 className="text-lg text-rd-navy font-serif">Event</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -506,12 +699,17 @@ export function Config({ data }: { data: AppData }) {
           />
         </div>
       </div>
+      )}
 
-      <BrandingEditor
-        branding={draft.branding}
-        onChange={(b) => setDraft((d) => ({ ...d, branding: b }))}
-      />
+      {activeTab === 'branding' && (
+        <BrandingEditor
+          branding={draft.branding}
+          onChange={(b) => setDraft((d) => ({ ...d, branding: b }))}
+        />
+      )}
 
+      {activeTab === 'course' && (
+      <>
       <div className="rd-card p-4">
         <h2 className="text-lg text-rd-navy font-serif mb-2">Tees</h2>
         <p className="text-xs text-rd-ink/60 mb-2">
@@ -646,11 +844,27 @@ export function Config({ data }: { data: AppData }) {
         </div>
       </div>
 
-      <CountOutEditor
-        countOut={draft.countOut}
-        onChange={(co) => setDraft((d) => ({ ...d, countOut: co }))}
-      />
+      </>
+      )}
 
+      {activeTab === 'rules' && (
+        <>
+          <CountOutEditor
+            countOut={draft.countOut}
+            onChange={(co) => setDraft((d) => ({ ...d, countOut: co }))}
+          />
+
+          <TeeTimesEditor
+            teeTimes={draft.teeTimes}
+            onChange={(tt) => setDraft((d) => ({ ...d, teeTimes: tt }))}
+            onGenerate={(day) => void handleGenerateTeeTimes(day)}
+            generateStatus={teeTimesStatus}
+            hasDay1Scores={hasDay1Scores}
+          />
+        </>
+      )}
+
+      {activeTab === 'divisions' && (
       <div className="rd-card p-4">
         <div className="flex items-baseline justify-between mb-3">
           <h2 className="text-lg text-rd-navy font-serif">Divisions</h2>
@@ -761,6 +975,7 @@ export function Config({ data }: { data: AppData }) {
           ))}
         </div>
       </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-3 pt-2">
         <button

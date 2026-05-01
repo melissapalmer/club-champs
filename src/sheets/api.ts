@@ -40,7 +40,12 @@ export async function fetchTab(sheetId: string, tab: string): Promise<string> {
   return res.text();
 }
 
-export type ActionName = 'upsertScore' | 'upsertPlayer' | 'removePlayer' | 'saveCourse';
+export type ActionName =
+  | 'upsertScore'
+  | 'upsertPlayer'
+  | 'removePlayer'
+  | 'saveCourse'
+  | 'saveTeeTimes';
 
 export type Action = {
   action: ActionName;

@@ -3,7 +3,8 @@ import { loadCourse } from './sheets/courseAdapter';
 import { loadPlayers } from './sheets/playersAdapter';
 import { loadScores } from './sheets/scoresAdapter';
 import { loadSheetIdForReads } from './sheets/settings';
-import type { Course, DayScore, Player } from './types';
+import { loadTeeTimes } from './sheets/teeTimesAdapter';
+import type { Course, DayScore, Player, TeeTime } from './types';
 
 const POLL_MS = 15_000;
 
@@ -11,6 +12,7 @@ export type AppData = {
   course: Course;
   players: Player[];
   scores: DayScore[];
+  teeTimes: TeeTime[];
   /** Force a fresh fetch (used after writes). */
   reload: () => Promise<void>;
 };
@@ -19,13 +21,15 @@ async function fetchAll(sheetId: string): Promise<{
   course: Course;
   players: Player[];
   scores: DayScore[];
+  teeTimes: TeeTime[];
 }> {
-  const [course, players, scores] = await Promise.all([
+  const [course, players, scores, teeTimes] = await Promise.all([
     loadCourse(sheetId),
     loadPlayers(sheetId),
     loadScores(sheetId),
+    loadTeeTimes(sheetId),
   ]);
-  return { course, players, scores };
+  return { course, players, scores, teeTimes };
 }
 
 /**
@@ -34,8 +38,13 @@ async function fetchAll(sheetId: string): Promise<{
  * numbers OR the JSON of one record. Stringifying the lot is fine for
  * a 20-player field.
  */
-function fingerprint(d: { course: Course; players: Player[]; scores: DayScore[] }): string {
-  return JSON.stringify([d.course, d.players, d.scores]);
+function fingerprint(d: {
+  course: Course;
+  players: Player[];
+  scores: DayScore[];
+  teeTimes: TeeTime[];
+}): string {
+  return JSON.stringify([d.course, d.players, d.scores, d.teeTimes]);
 }
 
 export function useAppData(): { data: AppData | null; error: string | null } {

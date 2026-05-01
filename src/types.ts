@@ -95,6 +95,28 @@ export type CountOutConfig = {
   steps: CountOutStep[];
 };
 
+export type TeeTimeConfig = {
+  /** Master flag. When false, nav item is hidden and /tee-times shows a "not enabled" empty state. */
+  enabled: boolean;
+  /** Number of players per tee group (2-, 3- or 4-balls). */
+  groupSize: 2 | 3 | 4;
+  /** Minutes between consecutive groups starting on the first tee. */
+  intervalMinutes: number;
+  /** First-group start time as "HH:MM" (24h). */
+  day1Start: string;
+  day2Start: string;
+};
+
+/** One row of the auto-generated TeeTimes Sheet tab. */
+export type TeeTime = {
+  day: 1 | 2;
+  /** "HH:MM" 24h. */
+  time: string;
+  saId: string;
+  /** Snapshot of fullName(player) at generation time, written for human readability of the Sheet. */
+  name: string;
+};
+
 export type Course = {
   club: string;
   event: string;
@@ -109,6 +131,8 @@ export type Course = {
   branding?: Branding;
   /** Optional tie-breaker rules. Absent or `enabled:false` ⇒ ties stay shared with no c/o badge. */
   countOut?: CountOutConfig;
+  /** Optional tee-time settings. Absent or `enabled:false` ⇒ Tee Times tab hidden. */
+  teeTimes?: TeeTimeConfig;
 };
 
 export type Player = {
