@@ -18,6 +18,7 @@ type NavItem = {
 // bookmarked URL with the access key (see /enter route). Config is visible
 // only when admin mode is active in this browser session.
 const NAV: NavItem[] = [
+  { to: '/', label: 'Home', end: true },
   {
     to: '/tee-times',
     label: 'Tee Times',
@@ -29,7 +30,7 @@ const NAV: NavItem[] = [
     visibleWhen: ({ course, teeTimes }) =>
       !!course?.teeTimes?.enabled || teeTimes.length > 0,
   },
-  { to: '/', label: 'Scores', end: true },
+  { to: '/scores', label: 'Scores', end: false },
   { to: '/eclectic', label: 'Eclectic', end: false },
   { to: '/results', label: 'Results', end: false },
   { to: '/players', label: 'Players', end: false, adminOnly: true },
