@@ -10,6 +10,7 @@ import {
   type PlayerLine,
   type RankResult,
 } from '../scoring/engine';
+import { resolveAssetUrl } from '../theme';
 import type { Course, DivisionConfig, PrizeCategory } from '../types';
 
 function podium(
@@ -20,19 +21,28 @@ function podium(
 ) {
   const ranks = rankWithCountOut(lines, PRIZE_SCOPE[category], course);
   const pick = PRIZE_PICK[category];
-  return lines
+  const all = lines
     .map((line, i) => ({ line, value: pick(line), rank: ranks[i] }))
-    .filter((r) => r.rank.pos != null && r.rank.pos <= topN)
-    .sort((a, b) => {
-      const ap = a.rank.pos ?? 0;
-      const bp = b.rank.pos ?? 0;
-      if (ap !== bp) return ap - bp;
-      // Within a shared position, render the count-out winner first.
-      if (a.rank.brokenByCountOut !== b.rank.brokenByCountOut) {
-        return a.rank.brokenByCountOut ? -1 : 1;
-      }
-      return 0;
-    });
+    .filter((r) => r.rank.pos != null);
+
+  // Count-out gives the winner the higher slot; the tied loser drops to the
+  // next slot. Effective pos = winner's pos + 1 for losers, otherwise = pos.
+  // Drop losers only when their effective pos falls outside topN — so a
+  // top-3 prize with a tie at pos 2 still awards three places.
+  const posWithCountOutWinner = new Set(
+    all.filter((r) => r.rank.brokenByCountOut).map((r) => r.rank.pos)
+  );
+  const withEffective = all.map((r) => ({
+    ...r,
+    effectivePos:
+      posWithCountOutWinner.has(r.rank.pos) && !r.rank.brokenByCountOut
+        ? (r.rank.pos as number) + 1
+        : (r.rank.pos as number),
+  }));
+
+  return withEffective
+    .filter((r) => r.effectivePos <= topN)
+    .sort((a, b) => a.effectivePos - b.effectivePos);
 }
 
 function PosBadge({ rank }: { rank: RankResult }) {
@@ -68,36 +78,34 @@ function DivisionResults({
   const awards = division.prizes?.awards ?? defaultAwards(division.format);
 
   return (
-    <div className="rd-card p-4">
-      <div className="flex items-baseline justify-between mb-3 gap-3">
-        <h2 className="text-xl text-rd-navy">{division.name} Division</h2>
-        <span className="text-xs text-rd-ink/60">
-          {awards.length} {awards.length === 1 ? 'prize' : 'prizes'}
-        </span>
-      </div>
+    <div className="rd-card overflow-hidden">
+      <h2 className="text-base uppercase tracking-wide text-center py-2 px-2 text-rd-navy font-sans font-semibold border-b-2 border-rd-gold">
+        {division.name} Division
+      </h2>
       {awards.length === 0 ? (
-        <p className="text-sm text-rd-ink/50">No prizes configured for this division.</p>
+        <p className="text-sm text-rd-ink/50 p-4">No prizes configured for this division.</p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-3 p-3">
           {awards.map(({ category, topN }) => {
             const winners = podium(lines, category, topN, course);
             return (
-              <div key={category}>
-                <h3 className="text-sm uppercase tracking-wide text-rd-gold mb-1 font-sans font-semibold flex items-baseline justify-between">
-                  <span>{PRIZE_LABELS[category]}</span>
-                  <span className="text-[11px] text-rd-ink/50 font-normal">Top {topN}</span>
+              <div key={category} className="border border-rd-navy/30 rounded overflow-hidden">
+                <h3 className="text-xs uppercase tracking-wide text-center py-1 px-2 bg-rd-navy/10 text-rd-navy font-sans font-semibold border-b border-rd-navy/30">
+                  {PRIZE_LABELS[category]}
                 </h3>
                 {winners.length === 0 ? (
-                  <p className="text-sm text-rd-ink/50">—</p>
+                  <p className="text-sm text-rd-ink/50 px-2 py-1">—</p>
                 ) : (
-                  <ol className="space-y-0.5">
-                    {winners.map((w) => (
+                  <ol>
+                    {winners.map((w, idx) => (
                       <li
                         key={w.line.player.saId}
-                        className="flex items-baseline justify-between text-sm"
+                        className={`flex items-baseline justify-between text-sm px-2 py-1 ${
+                          idx > 0 ? 'border-t border-rd-navy/15' : ''
+                        }`}
                       >
                         <span>
-                          <span className="font-semibold text-rd-navy mr-2 whitespace-nowrap">
+                          <span className="font-semibold text-rd-gold mr-2 whitespace-nowrap">
                             <PosBadge rank={w.rank} />
                           </span>
                           {fullName(w.line.player)}
@@ -126,15 +134,48 @@ export function Results({ data }: { data: AppData }) {
     [players, scores, course]
   );
   const byDiv = useMemo(() => linesByDivision(lines), [lines]);
+  const divs = visibleDivisions(course);
+
+  // One column per division on wide screens; collapse to fewer columns
+  // on narrower viewports so cards stay readable.
+  const gridCols =
+    divs.length >= 4
+      ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-4'
+      : divs.length === 3
+        ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
+        : divs.length === 2
+          ? 'grid-cols-1 md:grid-cols-2'
+          : 'grid-cols-1';
+
+  const logoUrl =
+    resolveAssetUrl(course.branding?.logoUrl) ?? resolveAssetUrl('royal-durban-logo.webp');
 
   return (
     <section>
-      <h1 className="text-2xl text-rd-navy mb-1">Results</h1>
-      <p className="text-sm text-rd-ink/60 mb-4">
-        Prize categories per division — configurable from the Config tab.
-      </p>
-      <div className="space-y-4">
-        {visibleDivisions(course).map((d) => (
+      <h1 className="text-2xl text-rd-navy mb-4 flex items-center gap-3">
+        {logoUrl && (
+          <img
+            src={logoUrl}
+            alt={course.club ?? 'Club logo'}
+            className="h-14 w-auto shrink-0"
+            // Tint the navy/cream-on-transparent logo to rd-navy so it stays
+            // visible on the cream page body (it was designed for the dark header).
+            style={{
+              filter:
+                'brightness(0) saturate(100%) invert(13%) sepia(86%) saturate(2200%) hue-rotate(216deg) brightness(95%) contrast(95%)',
+            }}
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = 'none';
+            }}
+          />
+        )}
+        <span>
+          {course.club ? `${course.club} — ` : ''}
+          {course.event} Winners
+        </span>
+      </h1>
+      <div className={`grid gap-4 ${gridCols}`}>
+        {divs.map((d) => (
           <DivisionResults
             key={d.code}
             division={d}

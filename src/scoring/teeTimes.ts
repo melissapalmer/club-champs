@@ -1,5 +1,5 @@
 import { fullName } from '../format';
-import type { Course, DivisionFormat, TeeTime, TeeTimeConfig } from '../types';
+import type { Course, DivisionFormat, DrawOrder, TeeTime, TeeTimeConfig } from '../types';
 import { rankWithCountOut, visibleDivisions, type PlayerLine } from './engine';
 
 /** Sensible defaults used when `course.teeTimes` is missing. Disabled by default
@@ -10,7 +10,12 @@ export const DEFAULT_TEE_TIMES: TeeTimeConfig = {
   intervalMinutes: 10,
   day1Start: '08:00',
   day2Start: '08:00',
+  day1Order: 'best-first',
+  day2Order: 'worst-first',
 };
+
+const DEFAULT_DAY1_ORDER: DrawOrder = 'best-first';
+const DEFAULT_DAY2_ORDER: DrawOrder = 'worst-first';
 
 /**
  * Add `mins` minutes to a "HH:MM" 24-hour string. Returned format is also
@@ -31,41 +36,45 @@ export function addMinutes(hhmm: string, mins: number): string {
 const DEFAULT_FORMAT: DivisionFormat = 'medal';
 
 /**
- * Day-1 by HI ascending (best players first — lowest HI off the first tee);
- * Day-2 by Day-1 standing (worst → best, so leaders come home in the last group).
+ * Sort one division's lines by the day's metric, biased by `order`:
+ *   - 'best-first':  best score → first (lowest HI on Day 1; rank 1 on Day 2)
+ *   - 'worst-first': worst score → first (highest HI on Day 1; worst rank on Day 2)
+ * On Day 2, DNS players (no Day-1 score) always tee off at the front of their
+ * division — both because they have no standing to slot in by, and because
+ * pairing them with mid-field groups would disrupt the rest of the order.
  */
 function sortLinesForDay(
   day: 1 | 2,
   lines: PlayerLine[],
-  course: Course
+  course: Course,
+  order: DrawOrder
 ): PlayerLine[] {
   if (day === 1) {
-    return [...lines].sort((a, b) => a.player.hi - b.player.hi);
+    return [...lines].sort((a, b) =>
+      order === 'best-first' ? a.player.hi - b.player.hi : b.player.hi - a.player.hi
+    );
   }
-  // Day 2: rank within this exact list by Day-1 metric, then sort by rank desc.
-  // We pick the metric off the first line's division (all lines in the slice
-  // we're called with share a division — the caller groups by division code
-  // before calling).
   const format: DivisionFormat = lines[0]?.division?.format ?? DEFAULT_FORMAT;
   const metric: 'net' | 'stableford' = format === 'stableford' ? 'stableford' : 'net';
   const ranks = rankWithCountOut(lines, { kind: 'day', day: 1, metric }, course);
   const indexed = lines.map((l, i) => ({ l, rank: ranks[i].pos }));
   indexed.sort((a, b) => {
-    // DNS (null rank) plays first within the division.
+    // DNS first regardless of order.
     if (a.rank == null && b.rank == null) return 0;
     if (a.rank == null) return -1;
     if (b.rank == null) return 1;
-    // Higher rank-number = worse score → off first; rank 1 = best → off last.
-    return b.rank - a.rank;
+    return order === 'best-first' ? a.rank - b.rank : b.rank - a.rank;
   });
   return indexed.map((x) => x.l);
 }
 
-/** Codes ordered D, C, B, A so the highest-letter division goes off first within a block. */
-function divisionsByCodeDesc(course: Course) {
-  return visibleDivisions(course)
-    .slice()
-    .sort((a, b) => b.code.localeCompare(a.code));
+/** Divisions in code order, asc or desc. 'best-first' → A,B,C,D; 'worst-first' → D,C,B,A. */
+function divisionsByOrder(course: Course, order: DrawOrder) {
+  const sorted = visibleDivisions(course).slice();
+  sorted.sort((a, b) =>
+    order === 'best-first' ? a.code.localeCompare(b.code) : b.code.localeCompare(a.code)
+  );
+  return sorted;
 }
 
 function divisionFormatOf(line: PlayerLine): DivisionFormat {
@@ -75,18 +84,22 @@ function divisionFormatOf(line: PlayerLine): DivisionFormat {
 /**
  * Generate a draw for one day from the current state.
  *
- * Field ordering:
- *   - Format blocks (stableford first, medal last). Format boundary is HARD —
- *     no group ever mixes a stableford and medal player.
- *   - Within a block, divisions are ordered by code descending (D, C, B, A).
- *     Division boundary inside a block is SOFT — a leftover from one division
- *     fills with the highest-HI/worst-rank players of the next division.
- *   - Within a division, Day 1 = HI asc (best players off first);
- *     Day 2 = worst-rank-first (DNS first; leaders home in the last group).
+ * Field ordering follows the day's `DrawOrder` end-to-end:
+ *   - 'best-first':  divisions A→D, best→worst within division (A-scratch
+ *                    tees off in the first group).
+ *   - 'worst-first': divisions D→A, worst→best within division (A-scratch
+ *                    tees off in the last group — leaders home last).
+ * Division boundary is SOFT — a leftover from one division fills with the
+ * next division's leading players, except across a format boundary: stableford
+ * and medal players never share a group, so we flush to a fresh group whenever
+ * the next player's format differs.
+ *
+ * Day 2 additionally puts DNS players (no Day-1 score) at the very front of
+ * their division regardless of order — they have no standing to slot in by.
  *
  * Hidden divisions and players without a division are skipped.
  *
- * Last group of each block may be partial.
+ * The last group at each format boundary may be partial.
  */
 export function generateDraw(
   day: 1 | 2,
@@ -94,24 +107,21 @@ export function generateDraw(
   course: Course,
   config: TeeTimeConfig
 ): TeeTime[] {
+  const order: DrawOrder =
+    day === 1
+      ? config.day1Order ?? DEFAULT_DAY1_ORDER
+      : config.day2Order ?? DEFAULT_DAY2_ORDER;
+
   const eligible = lines.filter((l) => l.division != null);
-  const stableford = eligible.filter((l) => divisionFormatOf(l) === 'stableford');
-  const medal = eligible.filter((l) => divisionFormatOf(l) === 'medal');
+  const orderedDivs = divisionsByOrder(course, order);
 
-  // Order each format block by [division desc, then sortLinesForDay within division],
-  // packing flat across the division boundary inside the block.
-  const orderBlock = (block: PlayerLine[]): PlayerLine[] => {
-    const out: PlayerLine[] = [];
-    for (const div of divisionsByCodeDesc(course)) {
-      const slice = block.filter((l) => l.division?.code === div.code);
-      if (slice.length === 0) continue;
-      out.push(...sortLinesForDay(day, slice, course));
-    }
-    return out;
-  };
-
-  const stablefordOrdered = orderBlock(stableford);
-  const medalOrdered = orderBlock(medal);
+  // Build the full field in division order, sorted within each division.
+  const fieldOrdered: PlayerLine[] = [];
+  for (const div of orderedDivs) {
+    const slice = eligible.filter((l) => l.division?.code === div.code);
+    if (slice.length === 0) continue;
+    fieldOrdered.push(...sortLinesForDay(day, slice, course, order));
+  }
 
   const startTime = day === 1 ? config.day1Start : config.day2Start;
   const groupSize = config.groupSize;
@@ -119,25 +129,31 @@ export function generateDraw(
 
   const teeTimes: TeeTime[] = [];
   let groupIdx = 0;
+  let pending: PlayerLine[] = [];
+  let pendingFormat: DivisionFormat | null = null;
 
-  // Each format block packs into its OWN groups — the medal block always
-  // starts a fresh group at the next interval, never sharing a group with
-  // the tail of the stableford block.
-  for (const blockOrdered of [stablefordOrdered, medalOrdered]) {
-    for (let i = 0; i < blockOrdered.length; i += groupSize) {
-      const group = blockOrdered.slice(i, i + groupSize);
-      const time = addMinutes(startTime, groupIdx * interval);
-      for (const line of group) {
-        teeTimes.push({
-          day,
-          time,
-          saId: line.player.saId,
-          name: fullName(line.player),
-        });
-      }
-      groupIdx += 1;
+  const flush = () => {
+    if (pending.length === 0) return;
+    const time = addMinutes(startTime, groupIdx * interval);
+    for (const line of pending) {
+      teeTimes.push({ day, time, saId: line.player.saId, name: fullName(line.player) });
     }
+    groupIdx += 1;
+    pending = [];
+    pendingFormat = null;
+  };
+
+  for (const line of fieldOrdered) {
+    const lineFormat = divisionFormatOf(line);
+    if (pendingFormat != null && pendingFormat !== lineFormat) {
+      // Format boundary: never mix in the same group.
+      flush();
+    }
+    pending.push(line);
+    pendingFormat = lineFormat;
+    if (pending.length === groupSize) flush();
   }
+  flush();
 
   return teeTimes;
 }

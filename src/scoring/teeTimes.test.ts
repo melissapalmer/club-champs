@@ -73,7 +73,7 @@ describe('generateDraw — Day 1', () => {
     expect(draw[0].name).toBe('P m2');
   });
 
-  it('orders divisions by code descending (D first, A last); format-split keeps D before C/B/A', () => {
+  it('default best-first orders divisions A→D and best→worst within each division', () => {
     const players: Player[] = [
       p('a1', 5),   // Gold (medal)
       p('a2', 3),   // Gold (medal)
@@ -86,15 +86,39 @@ describe('generateDraw — Day 1', () => {
     ];
     const lines = buildPlayerLines(players, [], baseCourse);
     const draw = generateDraw(1, lines, baseCourse, cfg({ groupSize: 4 }));
-    // Stableford block first (D), then medal block (C, B, A).
-    // Within each division, best player (lowest HI) off first.
+    // Field follows division order A→D end-to-end. Format boundary between C
+    // (medal) and D (stableford) forces a fresh group, so the C tail doesn't
+    // pack with D players.
     expect(draw.map((t) => t.saId)).toEqual([
-      // Stableford block, group 1: D players (only 2 → partial first group), HI asc.
+      // Group 1: A (best HI first), then B fills the rest.
+      'a2', 'a1', 'b1', 'b2',
+      // Group 2: C alone — flushes before D since formats differ.
+      'c1', 'c2',
+      // Group 3: D (stableford) at the back of the field.
       'd1', 'd2',
-      // Medal block, group 1: C (lowest HI first), then B fills the rest.
-      'c1', 'c2', 'b1', 'b2',
-      // Medal block, group 2: A in HI asc.
-      'a2', 'a1',
+    ]);
+  });
+
+  it('day1Order=worst-first orders divisions D→A and worst→best within each division', () => {
+    const players: Player[] = [
+      p('a1', 5), p('a2', 3),
+      p('b1', 10), p('b2', 12),
+      p('c1', 18), p('c2', 20),
+      p('d1', 28), p('d2', 30),
+    ];
+    const lines = buildPlayerLines(players, [], baseCourse);
+    const draw = generateDraw(
+      1,
+      lines,
+      baseCourse,
+      cfg({ groupSize: 4, day1Order: 'worst-first' })
+    );
+    expect(draw.map((t) => t.saId)).toEqual([
+      // Stableford D worst→best.
+      'd2', 'd1',
+      // Medal C, then B, then A — worst→best within each.
+      'c2', 'c1', 'b2', 'b1',
+      'a1', 'a2',
     ]);
   });
 
@@ -105,42 +129,40 @@ describe('generateDraw — Day 1', () => {
     ];
     const lines = buildPlayerLines(players, [], baseCourse);
     const draw = generateDraw(1, lines, baseCourse, cfg({ groupSize: 4 }));
-    // Group times: stableford D (3 players, partial group at 08:00), medal C (2 at 08:10).
-    // Within each block, lowest HI first.
+    // Default best-first: medal C first (08:00), then stableford D (08:10).
+    // Within each, lowest HI first.
     const byTime = new Map<string, string[]>();
     for (const t of draw) {
       const arr = byTime.get(t.time) ?? [];
       arr.push(t.saId);
       byTime.set(t.time, arr);
     }
-    expect(byTime.get('08:00')).toEqual(['d3', 'd2', 'd1']);
-    expect(byTime.get('08:10')).toEqual(['c2', 'c1']);
+    expect(byTime.get('08:00')).toEqual(['c2', 'c1']);
+    expect(byTime.get('08:10')).toEqual(['d3', 'd2', 'd1']);
   });
 
-  it('soft division boundary inside a format block — leftover Bronze plays with Silver', () => {
-    // Sparse Bronze (5 players) + Silver (3) + group size 4.
-    // Divisions in code-desc order are C(5) then B(3). With Day-1 HI ASC inside
-    // each, flat order is: c1,c2,c3,c4,c5,b1,b2,b3.
-    // Packed by 4: [c1,c2,c3,c4] [c5,b1,b2,b3].
-    // The 5th Bronze (c5, highest HI) shares a group with the 3 Silvers.
+  it('soft division boundary inside a format block — leftover Silver plays with Bronze', () => {
+    // Sparse Silver (3) + Bronze (5) + group size 4.
+    // Day-1 default best-first → divisions B(3) then C(5), within each HI asc.
+    // Flat: b1,b2,b3,c1,c2,c3,c4,c5. Packed by 4: [b1,b2,b3,c1] [c2,c3,c4,c5].
+    // The 3 Silvers share a group with C's leading player (c1).
     const players: Player[] = [
-      p('c1', 16), p('c2', 17), p('c3', 18), p('c4', 19), p('c5', 20),  // Bronze
-      p('b1', 7),  p('b2', 9),  p('b3', 11),                            // Silver
+      p('c1', 16), p('c2', 17), p('c3', 18), p('c4', 19), p('c5', 20),
+      p('b1', 7),  p('b2', 9),  p('b3', 11),
     ];
     const lines = buildPlayerLines(players, [], baseCourse);
     const draw = generateDraw(1, lines, baseCourse, cfg({ groupSize: 4 }));
     expect(draw.map((t) => t.saId)).toEqual([
-      'c1', 'c2', 'c3', 'c4',
-      'c5', 'b1', 'b2', 'b3',
+      'b1', 'b2', 'b3', 'c1',
+      'c2', 'c3', 'c4', 'c5',
     ]);
-    // Group times: 08:00 and 08:10.
     expect(draw.slice(0, 4).every((t) => t.time === '08:00')).toBe(true);
     expect(draw.slice(4, 8).every((t) => t.time === '08:10')).toBe(true);
   });
 
   it('does not include hidden divisions in the iteration order', () => {
     // We hide D entirely. With no D players in the field, the draw should be
-    // just the medal block (C → B → A in code-desc order).
+    // just the medal block (A → B → C under default best-first).
     const courseHiddenD: Course = {
       ...baseCourse,
       divisions: baseCourse.divisions.map((d) =>
@@ -152,7 +174,7 @@ describe('generateDraw — Day 1', () => {
     ];
     const lines = buildPlayerLines(players, [], courseHiddenD);
     const draw = generateDraw(1, lines, courseHiddenD, cfg({ groupSize: 3 }));
-    expect(draw.map((t) => t.saId)).toEqual(['c1', 'b1', 'a1']);
+    expect(draw.map((t) => t.saId)).toEqual(['a1', 'b1', 'c1']);
   });
 
   it('time math: 12 players, group size 4, interval 10, start 08:00 → 08:00 / 08:10 / 08:20', () => {
@@ -198,6 +220,25 @@ describe('generateDraw — Day 2', () => {
     const lines = buildPlayerLines(players, scores, baseCourse);
     const draw = generateDraw(2, lines, baseCourse, cfg({ groupSize: 3 }));
     // DNS first, then worst-to-best of the scored players.
+    expect(draw.map((t) => t.saId)).toEqual(['c2', 'c3', 'c1']);
+  });
+
+  it('day2Order=best-first puts the Day-1 leader off in the first group', () => {
+    const players: Player[] = [
+      p('c1', 18), p('c2', 18), p('c3', 18),
+    ];
+    const scores: DayScore[] = [
+      { saId: 'c1', day: 1, holes: holes(Array(18).fill(5)) }, // worst
+      { saId: 'c2', day: 1, holes: holes(Array(18).fill(4)) }, // best
+      { saId: 'c3', day: 1, holes: holes([5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4]) }, // middle
+    ];
+    const lines = buildPlayerLines(players, scores, baseCourse);
+    const draw = generateDraw(
+      2,
+      lines,
+      baseCourse,
+      cfg({ groupSize: 3, day2Order: 'best-first' })
+    );
     expect(draw.map((t) => t.saId)).toEqual(['c2', 'c3', 'c1']);
   });
 

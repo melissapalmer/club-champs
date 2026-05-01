@@ -129,10 +129,19 @@ export function TeeTimes({ data }: { data: AppData }) {
         </div>
       ) : (
         <div className="rd-card overflow-x-auto mb-4">
-          <table className="rd-table">
+          <table className="rd-table table-fixed">
+            <colgroup>
+              {/* Fixed 1st Tee column; player columns share the remainder
+                  equally via table-fixed, so Day 1 and Day 2 always render
+                  with the same widths regardless of name length. */}
+              <col style={{ width: '6rem' }} />
+              {colLetters.map((c) => (
+                <col key={c} />
+              ))}
+            </colgroup>
             <thead>
               <tr>
-                <th className="w-24">1st Tee</th>
+                <th>1st Tee</th>
                 {colLetters.map((c) => (
                   <th key={c}>Player {c}</th>
                 ))}
@@ -147,7 +156,9 @@ export function TeeTimes({ data }: { data: AppData }) {
                       {time}
                     </td>
                     {colLetters.map((c, i) => (
-                      <td key={c}>{renderPlayer(rows[i])}</td>
+                      <td key={c} className="break-words">
+                        {renderPlayer(rows[i])}
+                      </td>
                     ))}
                   </tr>
                 );

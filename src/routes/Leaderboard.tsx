@@ -140,7 +140,7 @@ function MedalHoleCard({ line, course }: { line: PlayerLine; course: Course }) {
 
   return (
     <div className="bg-rd-cream/40 -mx-3 -my-2 px-3 py-3 overflow-x-auto">
-      <table className="text-xs border-collapse w-full">
+      <table className="text-xs border-collapse w-full [&_th]:border [&_td]:border [&_th]:border-rd-navy/10 [&_td]:border-rd-navy/10">
         <thead>
           <tr className="text-rd-ink/60">
             <th className="text-left pr-2 py-2"></th>
@@ -160,7 +160,7 @@ function MedalHoleCard({ line, course }: { line: PlayerLine; course: Course }) {
             <th className="text-center font-semibold px-1 py-2">Net</th>
           </tr>
         </thead>
-        <tbody className="[&_td]:border-t [&_td]:border-rd-cream">
+        <tbody>
           <tr className="text-rd-ink/70">
             <th className="text-left pr-2 font-normal">Par</th>
             {holes.slice(0, 9).map((h, i) => (

@@ -255,9 +255,20 @@ function TeeTimesEditor({
   const intervalMinutes = teeTimes?.intervalMinutes ?? 10;
   const day1Start = teeTimes?.day1Start ?? '08:00';
   const day2Start = teeTimes?.day2Start ?? '08:00';
+  const day1Order = teeTimes?.day1Order ?? 'best-first';
+  const day2Order = teeTimes?.day2Order ?? 'worst-first';
 
   const patch = (next: Partial<TeeTimeConfig>) =>
-    onChange({ enabled, groupSize, intervalMinutes, day1Start, day2Start, ...next });
+    onChange({
+      enabled,
+      groupSize,
+      intervalMinutes,
+      day1Start,
+      day2Start,
+      day1Order,
+      day2Order,
+      ...next,
+    });
 
   return (
     <div className="rd-card p-4 space-y-3">
@@ -265,10 +276,10 @@ function TeeTimesEditor({
         <h2 className="text-lg text-rd-navy font-serif">Tee Times</h2>
         <p className="text-xs text-rd-ink/60 mt-1">
           Auto-generates a draw and writes it to the <code>TeeTimes</code> Sheet
-          tab. <strong>Day 1</strong> orders by HI ascending (best players off
-          first); <strong>Day 2</strong> by Day-1 standing (worst first, best
-          last — leaders home in the final group). Stableford and medal players
-          never share a group.
+          tab. Each day has its own ordering — <em>best off first</em> puts
+          A-scratch in the first group; <em>worst first, best last</em> puts
+          A-scratch in the last group (leaders home in the final group).
+          Stableford and medal players never share a group.
         </p>
       </div>
 
@@ -281,65 +292,81 @@ function TeeTimesEditor({
         <span className="text-sm">Enable Tee Times tab</span>
       </label>
 
-      <div
-        className={`grid grid-cols-2 sm:grid-cols-4 gap-3 ${enabled ? '' : 'opacity-50 pointer-events-none'}`}
-      >
-        <label className="block col-span-2 sm:col-span-1">
-          <span className="text-xs text-rd-ink/60 block">Group size</span>
-          <select
-            className="w-full border rounded px-2 py-1 mt-0.5"
-            value={String(groupSize)}
-            onChange={(e) => patch({ groupSize: Number(e.target.value) as 2 | 3 | 4 })}
-          >
-            <option value="2">2-balls</option>
-            <option value="3">3-balls</option>
-            <option value="4">4-balls</option>
-          </select>
-        </label>
-        <NumField
-          label="Interval (mins)"
-          value={intervalMinutes}
-          onChange={(v) => patch({ intervalMinutes: v })}
-        />
-        <label className="block">
-          <span className="text-xs text-rd-ink/60 block">Day 1 start</span>
-          <input
-            type="time"
-            className="w-full border rounded px-2 py-1 mt-0.5 tabular-nums"
-            value={day1Start}
-            onChange={(e) => patch({ day1Start: e.target.value })}
+      <div className={`space-y-3 ${enabled ? '' : 'opacity-50 pointer-events-none'}`}>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <label className="block col-span-2 sm:col-span-1">
+            <span className="text-xs text-rd-ink/60 block">Group size</span>
+            <select
+              className="w-full border rounded px-2 py-1 mt-0.5"
+              value={String(groupSize)}
+              onChange={(e) => patch({ groupSize: Number(e.target.value) as 2 | 3 | 4 })}
+            >
+              <option value="2">2-balls</option>
+              <option value="3">3-balls</option>
+              <option value="4">4-balls</option>
+            </select>
+          </label>
+          <NumField
+            label="Interval (mins)"
+            value={intervalMinutes}
+            onChange={(v) => patch({ intervalMinutes: v })}
           />
-        </label>
-        <label className="block">
-          <span className="text-xs text-rd-ink/60 block">Day 2 start</span>
-          <input
-            type="time"
-            className="w-full border rounded px-2 py-1 mt-0.5 tabular-nums"
-            value={day2Start}
-            onChange={(e) => patch({ day2Start: e.target.value })}
-          />
-        </label>
-      </div>
-
-      {enabled && (
-        <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-rd-cream/60 mt-1">
-          <span className="text-xs text-rd-ink/60 block w-full">
-            Generation overwrites the requested day's rows in the Sheet; the
-            other day stays put. Save course settings first if you've changed
-            anything above.
-          </span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 items-end">
+          <label className="block">
+            <span className="text-xs text-rd-ink/60 block">Day 1 start</span>
+            <input
+              type="time"
+              className="w-full border rounded px-2 py-1 mt-0.5 tabular-nums"
+              value={day1Start}
+              onChange={(e) => patch({ day1Start: e.target.value })}
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs text-rd-ink/60 block">Day 1 order</span>
+            <select
+              className="w-full border rounded px-2 py-1 mt-0.5"
+              value={day1Order}
+              onChange={(e) => patch({ day1Order: e.target.value as 'best-first' | 'worst-first' })}
+            >
+              <option value="best-first">Best off first</option>
+              <option value="worst-first">Worst first, best last</option>
+            </select>
+          </label>
           <button
             type="button"
-            className="px-3 py-1.5 text-sm bg-rd-navy text-white rounded font-medium disabled:opacity-50"
-            disabled={generateStatus.kind === 'busy'}
+            className="col-span-2 sm:col-span-1 px-3 py-1.5 text-sm bg-rd-navy text-white rounded font-medium disabled:opacity-50"
+            disabled={generateStatus.kind === 'busy' || !enabled}
             onClick={() => onGenerate(1)}
           >
             Generate Day 1 draw
           </button>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 items-end">
+          <label className="block">
+            <span className="text-xs text-rd-ink/60 block">Day 2 start</span>
+            <input
+              type="time"
+              className="w-full border rounded px-2 py-1 mt-0.5 tabular-nums"
+              value={day2Start}
+              onChange={(e) => patch({ day2Start: e.target.value })}
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs text-rd-ink/60 block">Day 2 order</span>
+            <select
+              className="w-full border rounded px-2 py-1 mt-0.5"
+              value={day2Order}
+              onChange={(e) => patch({ day2Order: e.target.value as 'best-first' | 'worst-first' })}
+            >
+              <option value="best-first">Best off first</option>
+              <option value="worst-first">Worst first, best last</option>
+            </select>
+          </label>
           <button
             type="button"
-            className="px-3 py-1.5 text-sm bg-rd-navy text-white rounded font-medium disabled:opacity-40"
-            disabled={generateStatus.kind === 'busy' || !hasDay1Scores}
+            className="col-span-2 sm:col-span-1 px-3 py-1.5 text-sm bg-rd-navy text-white rounded font-medium disabled:opacity-40"
+            disabled={generateStatus.kind === 'busy' || !hasDay1Scores || !enabled}
             onClick={() => onGenerate(2)}
             title={
               hasDay1Scores
@@ -349,9 +376,19 @@ function TeeTimesEditor({
           >
             Generate Day 2 draw
           </button>
+        </div>
+      </div>
+
+      {enabled && (
+        <div className="space-y-2 pt-1 border-t border-rd-cream/60 mt-1">
+          <span className="text-xs text-rd-ink/60 block">
+            Generating overwrites the requested day's rows in the Sheet; the
+            other day stays put. Save course settings first if you've changed
+            anything above.
+          </span>
           {generateStatus.msg && (
             <span
-              className={`text-sm ${
+              className={`text-sm block ${
                 generateStatus.kind === 'err'
                   ? 'text-red-700'
                   : generateStatus.kind === 'ok'
@@ -483,12 +520,16 @@ export function Config({ data }: { data: AppData }) {
   const [cfg, setCfg] = useState<SheetsSettings | null>(loadSheetsSettings());
   const [showSettings, setShowSettings] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('event');
+  const [activeDivisionCode, setActiveDivisionCode] = useState<string>(
+    data.course.divisions[0]?.code ?? 'A'
+  );
 
   const CONFIG_TABS: TabItem[] = [
     { id: 'event', label: 'Event' },
     { id: 'course', label: 'Course' },
     { id: 'divisions', label: 'Divisions' },
     { id: 'rules', label: 'Rules' },
+    { id: 'tee-times', label: 'Tee Times' },
     { id: 'branding', label: 'Branding' },
   ];
 
@@ -496,6 +537,17 @@ export function Config({ data }: { data: AppData }) {
   useEffect(() => {
     setDraft(structuredClone(data.course));
   }, [data.course]);
+
+  // If the active division was removed (or never matched), fall back to the
+  // first remaining division so the editor doesn't render blank.
+  useEffect(() => {
+    if (
+      draft.divisions.length > 0 &&
+      !draft.divisions.find((d) => d.code === activeDivisionCode)
+    ) {
+      setActiveDivisionCode(draft.divisions[0].code);
+    }
+  }, [draft.divisions, activeDivisionCode]);
 
   if (!admin) {
     return (
@@ -543,25 +595,24 @@ export function Config({ data }: { data: AppData }) {
   };
 
   const addDivision = () => {
-    setDraft((d) => {
-      const used = new Set(d.divisions.map((x) => x.code));
-      const next = (['A', 'B', 'C', 'D'] as DivisionCode[]).find((c) => !used.has(c));
-      if (!next) return d;
-      return {
-        ...d,
-        divisions: [
-          ...d.divisions,
-          {
-            code: next,
-            name: `Division ${next}`,
-            tee: 'red',
-            hiMin: 0,
-            hiMax: 54,
-            handicapPct: 100,
-          },
-        ],
-      };
-    });
+    const used = new Set(draft.divisions.map((x) => x.code));
+    const next = (['A', 'B', 'C', 'D'] as DivisionCode[]).find((c) => !used.has(c));
+    if (!next) return;
+    setDraft((d) => ({
+      ...d,
+      divisions: [
+        ...d.divisions,
+        {
+          code: next,
+          name: `Division ${next}`,
+          tee: 'red',
+          hiMin: 0,
+          hiMax: 54,
+          handicapPct: 100,
+        },
+      ],
+    }));
+    setActiveDivisionCode(next);
   };
 
   const updateHole = (idx: number, field: 'par' | 'siWomen' | 'siMen', v: number) => {
@@ -848,20 +899,20 @@ export function Config({ data }: { data: AppData }) {
       )}
 
       {activeTab === 'rules' && (
-        <>
-          <CountOutEditor
-            countOut={draft.countOut}
-            onChange={(co) => setDraft((d) => ({ ...d, countOut: co }))}
-          />
+        <CountOutEditor
+          countOut={draft.countOut}
+          onChange={(co) => setDraft((d) => ({ ...d, countOut: co }))}
+        />
+      )}
 
-          <TeeTimesEditor
-            teeTimes={draft.teeTimes}
-            onChange={(tt) => setDraft((d) => ({ ...d, teeTimes: tt }))}
-            onGenerate={(day) => void handleGenerateTeeTimes(day)}
-            generateStatus={teeTimesStatus}
-            hasDay1Scores={hasDay1Scores}
-          />
-        </>
+      {activeTab === 'tee-times' && (
+        <TeeTimesEditor
+          teeTimes={draft.teeTimes}
+          onChange={(tt) => setDraft((d) => ({ ...d, teeTimes: tt }))}
+          onGenerate={(day) => void handleGenerateTeeTimes(day)}
+          generateStatus={teeTimesStatus}
+          hasDay1Scores={hasDay1Scores}
+        />
       )}
 
       {activeTab === 'divisions' && (
@@ -877,8 +928,24 @@ export function Config({ data }: { data: AppData }) {
             + Add division
           </button>
         </div>
-        <div className="space-y-3">
-          {draft.divisions.map((div, idx) => (
+        {draft.divisions.length === 0 ? (
+          <p className="text-sm text-rd-ink/60">
+            No divisions yet — add one to get started.
+          </p>
+        ) : (
+          <>
+            <Tabs
+              tabs={draft.divisions.map((d) => ({
+                id: d.code,
+                label: d.name || `Division ${d.code}`,
+              }))}
+              active={activeDivisionCode}
+              onChange={setActiveDivisionCode}
+            />
+            {draft.divisions
+              .map((div, idx) => ({ div, idx }))
+              .filter(({ div }) => div.code === activeDivisionCode)
+              .map(({ div, idx }) => (
             <div
               key={div.code}
               className="border border-rd-cream rounded p-3 grid grid-cols-2 sm:grid-cols-6 gap-3"
@@ -972,8 +1039,9 @@ export function Config({ data }: { data: AppData }) {
                 />
               </div>
             </div>
-          ))}
-        </div>
+              ))}
+          </>
+        )}
       </div>
       )}
 

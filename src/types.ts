@@ -95,6 +95,18 @@ export type CountOutConfig = {
   steps: CountOutStep[];
 };
 
+/**
+ * Per-day ordering rule for the draw.
+ *   - 'best-first':  divisions A→D AND best→worst within each division. Net
+ *                    effect: A-scratch tees off in the very first group.
+ *   - 'worst-first': divisions D→A AND worst→best within each division. Net
+ *                    effect: A-scratch tees off in the very last group
+ *                    (traditional Day-2 "leader home last" pattern).
+ * The toggle deliberately flips both axes together so "best off first" really
+ * does put the best player at the front.
+ */
+export type DrawOrder = 'best-first' | 'worst-first';
+
 export type TeeTimeConfig = {
   /** Master flag. When false, nav item is hidden and /tee-times shows a "not enabled" empty state. */
   enabled: boolean;
@@ -105,6 +117,9 @@ export type TeeTimeConfig = {
   /** First-group start time as "HH:MM" (24h). */
   day1Start: string;
   day2Start: string;
+  /** Ordering rule for Day 1 / Day 2. Defaults applied in code. */
+  day1Order?: DrawOrder;
+  day2Order?: DrawOrder;
 };
 
 /** One row of the auto-generated TeeTimes Sheet tab. */
