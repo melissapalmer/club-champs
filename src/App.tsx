@@ -13,6 +13,8 @@ import { ManagePlayers } from './routes/ManagePlayers';
 import { MatchPlay } from './routes/MatchPlay';
 import { Players } from './routes/Players';
 import { Results } from './routes/Results';
+import { Stats } from './routes/Stats';
+import { StatsPlayer } from './routes/StatsPlayer';
 import { TeeTimes } from './routes/TeeTimes';
 import { loadSheetsSettings } from './sheets/settings';
 import { useApplyBranding } from './theme';
@@ -80,6 +82,8 @@ export function App() {
           <Route path="/scores" element={blocker ?? <Leaderboard data={data!} />} />
           <Route path="/eclectic" element={blocker ?? <Eclectic data={data!} />} />
           <Route path="/results" element={blocker ?? <Results data={data!} />} />
+          <Route path="/stats" element={blocker ?? <Stats data={data!} />} />
+          <Route path="/stats/:saId" element={blocker ?? <StatsPlayer data={data!} />} />
           <Route path="/tee-times" element={blocker ?? <TeeTimes data={data!} />} />
           <Route path="/match-play" element={blocker ?? <MatchPlay data={data!} />} />
           <Route path="/players" element={blocker ?? <Players data={data!} />} />
