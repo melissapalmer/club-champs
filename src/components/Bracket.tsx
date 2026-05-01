@@ -140,22 +140,31 @@ function MatchCard({
 }) {
   const isBye = match.result === 'bye';
   return (
-    <div className="flex flex-col gap-1">
-      <PlayerRow
-        saId={match.playerASaId}
-        playerById={playerById}
-        seedBySaId={seedBySaId}
-        won={match.winnerSaId != null && match.winnerSaId === match.playerASaId}
-        isOtherSideBye={isBye && !match.playerASaId}
-        result={match.result}
-      />
-      <PlayerRow
-        saId={match.playerBSaId}
-        playerById={playerById}
-        seedBySaId={seedBySaId}
-        won={match.winnerSaId != null && match.winnerSaId === match.playerBSaId}
-        isOtherSideBye={isBye && !match.playerBSaId}
-        result={match.result}
+    <div className="relative">
+      <div className="flex flex-col bg-rd-navy text-white text-sm">
+        <PlayerRow
+          saId={match.playerASaId}
+          playerById={playerById}
+          seedBySaId={seedBySaId}
+          won={match.winnerSaId != null && match.winnerSaId === match.playerASaId}
+          isOtherSideBye={isBye && !match.playerASaId}
+          result={match.result}
+        />
+        <div className="border-t-4 border-white/30" aria-hidden="true" />
+        <PlayerRow
+          saId={match.playerBSaId}
+          playerById={playerById}
+          seedBySaId={seedBySaId}
+          won={match.winnerSaId != null && match.winnerSaId === match.playerBSaId}
+          isOtherSideBye={isBye && !match.playerBSaId}
+          result={match.result}
+        />
+      </div>
+      {/* Single right-pointing arrow spanning both player rows. */}
+      <div
+        className="absolute -right-3 top-0 bottom-0 w-3 bg-rd-navy"
+        style={{ clipPath: 'polygon(0 0, 100% 50%, 0 100%)' }}
+        aria-hidden="true"
       />
     </div>
   );
@@ -205,10 +214,12 @@ function ChampionCard({
 }
 
 /**
- * One flagged player row. Layout:
- *   [seed cell · darker bg]  [name · main bg, flexes to fill]  [result · right-aligned, only for winner]
- * with a right-pointing triangle ("flag") protruding from the right edge
- * in the same color as the row's main bg.
+ * One player row inside a MatchCard. Layout:
+ *   [seed cell · darker bg]  [name · flexes to fill]  [result · right-aligned, only for winner]
+ * The MatchCard wraps both rows in a single container with one shared
+ * arrow flag, so this row no longer paints its own bg or arrow.
+ * Winner is shown by bolding the name (the row bg can't differ without
+ * breaking the unified arrow silhouette).
  */
 function PlayerRow({
   saId,
@@ -235,39 +246,23 @@ function PlayerRow({
       ? fullName(player)
       : `(${saId})`;
 
-  // Winners get a slightly darker shade so the eye lands on them; everyone
-  // else stays on the standard navy. Both keep white text.
-  const rowBg = won ? 'bg-rd-navy-deep' : 'bg-rd-navy';
-
   return (
-    <div className="relative">
-      <div className={`flex items-stretch text-sm text-white ${rowBg}`}>
-        {/* Seed cell — small fixed-width column, slightly darker than the row. */}
-        <span className="px-2 py-1.5 bg-black/20 tabular-nums text-xs flex items-center justify-center min-w-[2rem]">
-          {seed != null ? seed : ''}
+    <div className="flex items-stretch">
+      <span className="px-2 py-1.5 bg-black/20 tabular-nums text-xs flex items-center justify-center min-w-[2rem]">
+        {seed != null ? seed : ''}
+      </span>
+      <span
+        className={`flex-1 px-2 py-1.5 truncate ${
+          !saId ? 'text-white/50 italic' : won ? 'font-semibold' : ''
+        }`}
+      >
+        {display}
+      </span>
+      {won && result && result !== 'bye' && (
+        <span className="px-2 py-1.5 text-[10px] italic text-white/80 whitespace-nowrap">
+          {result}
         </span>
-        {/* Name — flexes to fill. Bye / empty rows render the same width with
-            muted text so the row outline matches the named rows. */}
-        <span
-          className={`flex-1 px-2 py-1.5 truncate ${
-            !saId ? 'text-white/50 italic' : ''
-          }`}
-        >
-          {display}
-        </span>
-        {/* Result — only shown on the winner. */}
-        {won && result && result !== 'bye' && (
-          <span className="px-2 py-1.5 text-[10px] italic text-white/80 whitespace-nowrap">
-            {result}
-          </span>
-        )}
-      </div>
-      {/* Right-pointing arrow flag — same color as the row, protrudes 12px. */}
-      <div
-        className={`absolute -right-3 top-0 bottom-0 w-3 ${rowBg}`}
-        style={{ clipPath: 'polygon(0 0, 100% 50%, 0 100%)' }}
-        aria-hidden="true"
-      />
+      )}
     </div>
   );
 }
