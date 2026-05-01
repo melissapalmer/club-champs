@@ -1,5 +1,5 @@
 import { fullName } from '../format';
-import { matchesByRound, roundLabel } from '../scoring/matchPlay';
+import { matchesByRound, pairingOrder, roundLabel } from '../scoring/matchPlay';
 import type { Match, Player } from '../types';
 
 /**
@@ -68,31 +68,23 @@ export function Bracket({
  * from the persisted bracket without re-running the engine.
  *
  * Round-1 slot s pairs seeds at indices `pairingOrder(N)[2s]` and
- * `pairingOrder(N)[2s+1]`. We invert that map.
+ * `pairingOrder(N)[2s+1]`. We invert that map. If the bracket size isn't
+ * a power of 2 (e.g. stale data), `pairingOrder` returns `[]` and we
+ * silently skip seed labels — bracket still renders without them.
  */
 function computeSeedMap(matches: Match[]): Map<string, number> {
   const round1 = matches.filter((m) => m.round === 1).sort((a, b) => a.slot - b.slot);
   const out = new Map<string, number>();
   if (round1.length === 0) return out;
   const N = round1.length * 2;
-  const order = pairingOrderInline(N);
+  const order = pairingOrder(N);
+  if (order.length !== N) return out;
   round1.forEach((m, idx) => {
     const seedA = order[2 * idx];
     const seedB = order[2 * idx + 1];
-    if (m.playerASaId) out.set(m.playerASaId, seedA);
-    if (m.playerBSaId) out.set(m.playerBSaId, seedB);
+    if (m.playerASaId && seedA != null) out.set(m.playerASaId, seedA);
+    if (m.playerBSaId && seedB != null) out.set(m.playerBSaId, seedB);
   });
-  return out;
-}
-
-function pairingOrderInline(N: number): number[] {
-  if (N === 1) return [1];
-  const half = pairingOrderInline(N / 2);
-  const out: number[] = [];
-  for (const s of half) {
-    out.push(s);
-    out.push(N + 1 - s);
-  }
   return out;
 }
 

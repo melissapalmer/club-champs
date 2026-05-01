@@ -28,8 +28,15 @@ export function bracketSize(optInCount: number): number {
  * Standard "Swiss" seeding sequence for an N-bracket. Returns seed numbers
  * (1-indexed) in slot order. For N=8: [1,8,4,5,2,7,3,6]. The construction
  * is recursive: pair each seed s in the half-size order with N+1-s.
+ *
+ * Defensive: only positive integer powers of 2 are valid bracket sizes.
+ * Any other input returns `[]` — callers should treat that as "can't
+ * compute" rather than risk infinite recursion (a bracket with a stale
+ * non-power-of-2 round-1 row used to crash the renderer).
  */
 export function pairingOrder(N: number): number[] {
+  if (!Number.isInteger(N) || N < 1) return [];
+  if ((N & (N - 1)) !== 0) return [];
   if (N === 1) return [1];
   const half = pairingOrder(N / 2);
   const out: number[] = [];
