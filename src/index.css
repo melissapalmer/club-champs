@@ -50,3 +50,26 @@
     @apply border-rd-gold text-rd-navy;
   }
 }
+
+/* Print rules — quiet the chrome and let table rows stay on a single page.
+   Most interactive controls (buttons) get hidden so the printed page is just
+   data. Tailwind's `print:` variants handle anything route-specific. */
+@media print {
+  @page { margin: 1.5cm; size: A4; }
+  body { background: white; }
+  button { display: none !important; }
+  tr { break-inside: avoid; page-break-inside: avoid; }
+  .print-color-exact {
+    -webkit-print-color-adjust: exact;
+    color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .print-hidden { display: none !important; }
+  /* Header logo is gold-on-transparent — fine on navy on screen, but in B&W
+     print the gold becomes light grey on dark grey and the contrast collapses.
+     Force opaque parts of the image to white so it pops in both colour and
+     B&W print. */
+  header img {
+    filter: brightness(0) invert(1) !important;
+  }
+}

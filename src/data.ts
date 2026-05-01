@@ -13,6 +13,8 @@ export type AppData = {
   players: Player[];
   scores: DayScore[];
   teeTimes: TeeTime[];
+  /** Wall-clock time of the last *content* change (not the last poll). */
+  lastChanged: Date;
   /** Force a fresh fetch (used after writes). */
   reload: () => Promise<void>;
 };
@@ -80,8 +82,10 @@ export function useAppData(): { data: AppData | null; error: string | null } {
       const print = fingerprint(next);
       if (print !== lastPrintRef.current) {
         lastPrintRef.current = print;
+        const lastChanged = new Date();
         setData((prev) => ({
           ...next,
+          lastChanged,
           reload: prev?.reload ?? reload,
         }));
       }

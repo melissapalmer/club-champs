@@ -10,7 +10,6 @@ import {
   type PlayerLine,
   type RankResult,
 } from '../scoring/engine';
-import { resolveAssetUrl } from '../theme';
 import type { Course, DivisionConfig, PrizeCategory } from '../types';
 
 function podium(
@@ -78,14 +77,14 @@ function DivisionResults({
   const awards = division.prizes?.awards ?? defaultAwards(division.format);
 
   return (
-    <div className="rd-card overflow-hidden">
+    <div className="rd-card overflow-hidden print:break-inside-avoid">
       <h2 className="text-base uppercase tracking-wide text-center py-2 px-2 text-rd-navy font-sans font-semibold border-b-2 border-rd-gold">
         {division.name} Division
       </h2>
       {awards.length === 0 ? (
         <p className="text-sm text-rd-ink/50 p-4">No prizes configured for this division.</p>
       ) : (
-        <div className="space-y-3 p-3">
+        <div className="space-y-3 p-3 print:space-y-1 print:p-2">
           {awards.map(({ category, topN }) => {
             const winners = podium(lines, category, topN, course);
             return (
@@ -137,44 +136,26 @@ export function Results({ data }: { data: AppData }) {
   const divs = visibleDivisions(course);
 
   // One column per division on wide screens; collapse to fewer columns
-  // on narrower viewports so cards stay readable.
+  // on narrower viewports so cards stay readable. The `print:` variants
+  // force the same N-column layout when printing (the print "viewport" is
+  // narrower than xl:, so without these the grid would collapse to 2 cols
+  // and divisions would spill onto a second page).
   const gridCols =
     divs.length >= 4
-      ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-4'
+      ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-4 print:grid-cols-4'
       : divs.length === 3
-        ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
+        ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3 print:grid-cols-3'
         : divs.length === 2
-          ? 'grid-cols-1 md:grid-cols-2'
+          ? 'grid-cols-1 md:grid-cols-2 print:grid-cols-2'
           : 'grid-cols-1';
-
-  const logoUrl =
-    resolveAssetUrl(course.branding?.logoUrl) ?? resolveAssetUrl('royal-durban-logo.webp');
 
   return (
     <section>
-      <h1 className="text-2xl text-rd-navy mb-4 flex items-center gap-3">
-        {logoUrl && (
-          <img
-            src={logoUrl}
-            alt={course.club ?? 'Club logo'}
-            className="h-14 w-auto shrink-0"
-            // Tint the navy/cream-on-transparent logo to rd-navy so it stays
-            // visible on the cream page body (it was designed for the dark header).
-            style={{
-              filter:
-                'brightness(0) saturate(100%) invert(13%) sepia(86%) saturate(2200%) hue-rotate(216deg) brightness(95%) contrast(95%)',
-            }}
-            onError={(e) => {
-              (e.currentTarget as HTMLImageElement).style.display = 'none';
-            }}
-          />
-        )}
-        <span>
-          {course.club ? `${course.club} — ` : ''}
-          {course.event} Winners
-        </span>
-      </h1>
-      <div className={`grid gap-4 ${gridCols}`}>
+      <h1 className="text-2xl text-rd-navy mb-1">Results</h1>
+      <p className="text-sm text-rd-ink/60 mb-4">
+        Prize winners by division and category.
+      </p>
+      <div className={`grid gap-4 print:gap-2 print-color-exact ${gridCols}`}>
         {divs.map((d) => (
           <DivisionResults
             key={d.code}

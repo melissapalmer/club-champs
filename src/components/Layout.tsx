@@ -37,12 +37,18 @@ const NAV: NavItem[] = [
   { to: '/config', label: 'Config', end: false, adminOnly: true },
 ];
 
+function formatTime(d: Date): string {
+  return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+
 export function Layout({
   course,
   teeTimes = [],
+  lastChanged = null,
 }: {
   course: Course | null;
   teeTimes?: TeeTime[];
+  lastChanged?: Date | null;
 }) {
   const admin = useIsAdmin();
   const ctx: NavCtx = { course, teeTimes };
@@ -53,7 +59,7 @@ export function Layout({
   );
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="bg-rd-navy text-white">
+      <header className="bg-rd-navy text-white print-color-exact">
         <div className="max-w-7xl mx-auto px-4 py-5 flex items-center gap-4">
           <img
             src={resolveAssetUrl(course?.branding?.logoUrl) ?? resolveAssetUrl('royal-durban-logo.webp')}
@@ -72,7 +78,7 @@ export function Layout({
             </div>
           </div>
         </div>
-        <nav className="bg-rd-navy-deep">
+        <nav className="bg-rd-navy-deep print:hidden">
           <div className="max-w-7xl mx-auto px-2 flex flex-wrap">
             {items.map((item) => (
               <NavLink
@@ -97,7 +103,14 @@ export function Layout({
         <Outlet />
       </main>
       <footer className="border-t border-rd-cream text-xs text-rd-ink/60 py-4 text-center">
-        {course?.club ?? 'Royal Durban Golf Club'} · {course?.event ?? '2026 Ladies Club Champs'}
+        <div>
+          {course?.club ?? 'Royal Durban Golf Club'} · {course?.event ?? '2026 Ladies Club Champs'}
+        </div>
+        {lastChanged && (
+          <div className="text-rd-ink/40 mt-0.5 print-hidden">
+            Updated at {formatTime(lastChanged)}
+          </div>
+        )}
       </footer>
     </div>
   );

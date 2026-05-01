@@ -73,7 +73,7 @@ export function App() {
   return (
     <>
       <Routes>
-        <Route element={<Layout course={data?.course ?? null} teeTimes={data?.teeTimes ?? []} />}>
+        <Route element={<Layout course={data?.course ?? null} teeTimes={data?.teeTimes ?? []} lastChanged={data?.lastChanged ?? null} />}>
           <Route path="/" element={blocker ?? <Leaderboard data={data!} />} />
           <Route path="/eclectic" element={blocker ?? <Eclectic data={data!} />} />
           <Route path="/results" element={blocker ?? <Results data={data!} />} />

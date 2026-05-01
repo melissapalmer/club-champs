@@ -443,11 +443,32 @@ export function Leaderboard({ data }: { data: AppData }) {
       </p>
       <DivisionTabs divisions={divs} active={activeDiv} onChange={setActiveDiv} />
 
-      {!isStableford && (
-        <div className="mb-3">
-          <ScoreLegend />
-        </div>
-      )}
+      <div className="flex items-center justify-between mb-3 gap-3 print-hidden">
+        <div>{!isStableford && <ScoreLegend />}</div>
+        <button
+          type="button"
+          onClick={() => {
+            setExpandedSaIds((curr) => {
+              const allOpen =
+                sorted.length > 0 &&
+                sorted.every(({ line }) => curr.has(line.player.saId));
+              const next = new Set(curr);
+              if (allOpen) {
+                sorted.forEach(({ line }) => next.delete(line.player.saId));
+              } else {
+                sorted.forEach(({ line }) => next.add(line.player.saId));
+              }
+              return next;
+            });
+          }}
+          className="text-xs text-rd-navy hover:underline whitespace-nowrap"
+        >
+          {sorted.length > 0 &&
+          sorted.every(({ line }) => expandedSaIds.has(line.player.saId))
+            ? 'Collapse all'
+            : 'Expand all'}
+        </button>
+      </div>
 
       <div className="rd-card overflow-x-auto">
         <table className="rd-table">
