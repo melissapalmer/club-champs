@@ -60,6 +60,8 @@ export type DivisionConfig = {
    *   - count-out runs on stableford-points-per-hole (highest wins)
    */
   format?: DivisionFormat;
+  /** Optional per-division Match Play knockout. Absent ⇒ this division has no bracket. */
+  matchPlay?: MatchPlayConfig;
 };
 
 export type BrandingColors = {
@@ -132,6 +134,50 @@ export type TeeTime = {
   name: string;
 };
 
+/**
+ * Per-division Match Play config. Each division independently decides
+ * whether to run a knockout bracket. The Match Play tab on the public
+ * site shows a sub-tab per division that has `enabled: true` OR has
+ * persisted matches.
+ */
+export type MatchPlayConfig = {
+  enabled: boolean;
+  /** Display name for the bracket, e.g. "Bronze Match Play". Falls back to division name. */
+  name?: string;
+  /** ISO timestamp set when admin clicks Generate. Surfaces "last generated at…". */
+  bracketGeneratedAt?: string;
+};
+
+/**
+ * One match in the knockout bracket. Matches are pre-generated up front for the
+ * full bracket; rounds 2+ start with empty playerASaId/playerBSaId until the
+ * previous round resolves and `propagateAll` slots winners in.
+ *
+ * id format: "round-slot" (e.g. "1-0", "3-1"). Even slot in round R feeds
+ * playerA of round R+1 slot floor(s/2); odd slot feeds playerB.
+ *
+ * Bye encoding: round-1 match where exactly one of playerA/B is set has
+ * winnerSaId == that side and result === "bye". The engine auto-resolves byes
+ * during generation so they propagate cleanly into round 2.
+ */
+export type Match = {
+  /**
+   * "round-slot" within the division's bracket (e.g. "1-0", "3-1").
+   * Brackets are scoped per division, so id alone is NOT a global key —
+   * use (divisionCode, id) as the composite key.
+   */
+  id: string;
+  /** Which division's bracket this match belongs to. */
+  divisionCode: DivisionCode;
+  round: number;
+  slot: number;
+  playerASaId?: string;
+  playerBSaId?: string;
+  winnerSaId?: string;
+  /** Free text — golf match-play conventions: "1 up", "3 and 2", "won on 19th", "bye". */
+  result?: string;
+};
+
 export type Course = {
   club: string;
   event: string;
@@ -156,6 +202,8 @@ export type Player = {
   saId: string;
   hi: number;
   divisionOverride?: DivisionCode;
+  /** Per-player opt-in flag for the Match Play knockout bracket. */
+  matchPlay?: boolean;
 };
 
 export type DayScore = {

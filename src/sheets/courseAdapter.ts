@@ -12,7 +12,7 @@ const TAB = 'Course';
  * rarely touched, and the JSON cells are still copy-pasteable.
  */
 const SCALAR_KEYS = ['club', 'event', 'gender', 'maxHandicap', 'eclecticHandicapPct'] as const;
-const JSON_KEYS = ['tees', 'divisions', 'holes', 'branding', 'countOut', 'teeTimes'] as const;
+const JSON_KEYS = ['tees', 'divisions', 'holes', 'branding', 'countOut', 'teeTimes', 'matchPlay'] as const;
 
 type Row = { key?: string; value?: string };
 

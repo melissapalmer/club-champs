@@ -45,7 +45,9 @@ export type ActionName =
   | 'upsertPlayer'
   | 'removePlayer'
   | 'saveCourse'
-  | 'saveTeeTimes';
+  | 'saveTeeTimes'
+  | 'saveMatches'
+  | 'clearMatches';
 
 export type Action = {
   action: ActionName;

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { loadCourse } from './sheets/courseAdapter';
+import { loadMatches } from './sheets/matchesAdapter';
 import { loadPlayers } from './sheets/playersAdapter';
 import { loadScores } from './sheets/scoresAdapter';
 import { loadSheetIdForReads } from './sheets/settings';
 import { loadTeeTimes } from './sheets/teeTimesAdapter';
-import type { Course, DayScore, Player, TeeTime } from './types';
+import type { Course, DayScore, Match, Player, TeeTime } from './types';
 
 const POLL_MS = 15_000;
 
@@ -13,6 +14,7 @@ export type AppData = {
   players: Player[];
   scores: DayScore[];
   teeTimes: TeeTime[];
+  matches: Match[];
   /** Wall-clock time of the last *content* change (not the last poll). */
   lastChanged: Date;
   /** Force a fresh fetch (used after writes). */
@@ -24,14 +26,16 @@ async function fetchAll(sheetId: string): Promise<{
   players: Player[];
   scores: DayScore[];
   teeTimes: TeeTime[];
+  matches: Match[];
 }> {
-  const [course, players, scores, teeTimes] = await Promise.all([
+  const [course, players, scores, teeTimes, matches] = await Promise.all([
     loadCourse(sheetId),
     loadPlayers(sheetId),
     loadScores(sheetId),
     loadTeeTimes(sheetId),
+    loadMatches(sheetId),
   ]);
-  return { course, players, scores, teeTimes };
+  return { course, players, scores, teeTimes, matches };
 }
 
 /**
@@ -45,8 +49,9 @@ function fingerprint(d: {
   players: Player[];
   scores: DayScore[];
   teeTimes: TeeTime[];
+  matches: Match[];
 }): string {
-  return JSON.stringify([d.course, d.players, d.scores, d.teeTimes]);
+  return JSON.stringify([d.course, d.players, d.scores, d.teeTimes, d.matches]);
 }
 
 export function useAppData(): { data: AppData | null; error: string | null } {

@@ -10,6 +10,7 @@ import { Enter } from './routes/Enter';
 import { Home } from './routes/Home';
 import { Leaderboard } from './routes/Leaderboard';
 import { ManagePlayers } from './routes/ManagePlayers';
+import { MatchPlay } from './routes/MatchPlay';
 import { Players } from './routes/Players';
 import { Results } from './routes/Results';
 import { TeeTimes } from './routes/TeeTimes';
@@ -74,12 +75,13 @@ export function App() {
   return (
     <>
       <Routes>
-        <Route element={<Layout course={data?.course ?? null} teeTimes={data?.teeTimes ?? []} lastChanged={data?.lastChanged ?? null} />}>
+        <Route element={<Layout course={data?.course ?? null} teeTimes={data?.teeTimes ?? []} matches={data?.matches ?? []} lastChanged={data?.lastChanged ?? null} />}>
           <Route path="/" element={blocker ?? <Home data={data!} />} />
           <Route path="/scores" element={blocker ?? <Leaderboard data={data!} />} />
           <Route path="/eclectic" element={blocker ?? <Eclectic data={data!} />} />
           <Route path="/results" element={blocker ?? <Results data={data!} />} />
           <Route path="/tee-times" element={blocker ?? <TeeTimes data={data!} />} />
+          <Route path="/match-play" element={blocker ?? <MatchPlay data={data!} />} />
           <Route path="/players" element={blocker ?? <Players data={data!} />} />
           <Route path="/enter" element={blocker ?? <Enter data={data!} />} />
           <Route path="/manage-players" element={blocker ?? <ManagePlayers data={data!} />} />

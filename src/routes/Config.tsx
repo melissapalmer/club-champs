@@ -9,9 +9,11 @@ import {
   defaultAwards,
   PRIZE_LABELS,
 } from '../prizes';
-import { buildPlayerLines, DEFAULT_COUNT_OUT_STEPS } from '../scoring/engine';
+import { buildPlayerLines, DEFAULT_COUNT_OUT_STEPS, divisionFor } from '../scoring/engine';
+import { generateBracket, matchesByRound, propagateAll, roundLabel } from '../scoring/matchPlay';
 import { generateDraw } from '../scoring/teeTimes';
 import { saveCourse } from '../sheets/courseAdapter';
+import { clearMatches, saveMatches } from '../sheets/matchesAdapter';
 import { loadSheetsSettings, type SheetsSettings } from '../sheets/settings';
 import { saveTeeTimes } from '../sheets/teeTimesAdapter';
 import { resolveAssetUrl } from '../theme';
@@ -234,6 +236,364 @@ function CountOutEditor({
         </button>
       </div>
     </div>
+  );
+}
+
+function MatchPlayEditor({
+  divisionCode,
+  divisionName,
+  course,
+  players,
+  matches,
+  matchPlay,
+  onChange,
+  onGenerate,
+  onReset,
+  onSaveMatchResult,
+  status,
+}: {
+  divisionCode: DivisionCode;
+  divisionName: string;
+  course: Course;
+  players: import('../types').Player[];
+  matches: import('../types').Match[];
+  matchPlay: import('../types').MatchPlayConfig | undefined;
+  onChange: (mp: import('../types').MatchPlayConfig) => void;
+  onGenerate: () => void;
+  onReset: () => void;
+  onSaveMatchResult: (matchId: string, winnerSaId: string | undefined, result: string) => void;
+  status: { kind: 'idle' | 'busy' | 'ok' | 'err'; msg?: string };
+}) {
+  const enabled = !!matchPlay?.enabled;
+  const name = matchPlay?.name ?? '';
+  const generatedAt = matchPlay?.bracketGeneratedAt;
+
+  const patch = (next: Partial<import('../types').MatchPlayConfig>) =>
+    onChange({ ...(matchPlay ?? { enabled: false }), enabled, name, ...next });
+
+  // Pool: players whose live division resolves to this one, AND who haven't
+  // explicitly opted out. (Default-opt-in.)
+  const optedPool = players.filter(
+    (p) =>
+      p.matchPlay !== false &&
+      divisionFor(p, course)?.code === divisionCode
+  );
+
+  // Distribution across all divisions, so the admin can see at a glance
+  // how the field is split (e.g. "Gold 0, Silver 8, Bronze 12, Copper 4").
+  const optInsByDivision = course.divisions.reduce<Record<string, number>>(
+    (acc, d) => {
+      acc[d.code] = players.filter(
+        (p) => p.matchPlay !== false && divisionFor(p, course)?.code === d.code
+      ).length;
+      return acc;
+    },
+    {}
+  );
+  const totalOptedIn = players.filter((p) => p.matchPlay !== false).length;
+  const optedOutCount = players.filter((p) => p.matchPlay === false).length;
+
+  // Power-of-two-up size, mirroring the engine.
+  const computedSize =
+    optedPool.length < 2
+      ? 0
+      : 1 << Math.ceil(Math.log2(optedPool.length));
+
+  const playerById = new Map(players.map((p) => [p.saId, p]));
+  const nameOf = (saId: string | undefined): string => {
+    if (!saId) return '';
+    const p = playerById.get(saId);
+    return p ? fullNameInline(p) : `(${saId})`;
+  };
+
+  const divisionMatches = matches.filter((m) => m.divisionCode === divisionCode);
+  const rounds = matchesByRound(divisionMatches);
+  const totalRounds = rounds.length;
+
+  return (
+    <div className="space-y-4">
+      <div className="rd-card p-4 space-y-3">
+        <div>
+          <h2 className="text-lg text-rd-navy font-serif">
+            {divisionName} Match Play
+          </h2>
+          <p className="text-xs text-rd-ink/60 mt-1">
+            Single-elimination knockout for {divisionName}. Players are seeded
+            by HI; top seeds get byes when opt-ins isn't a power of 2. Players
+            opt in/out individually via Manage Players (default: opted in).
+          </p>
+        </div>
+
+        <label className="inline-flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(e) => patch({ enabled: e.target.checked })}
+          />
+          <span className="text-sm">Enable {divisionName} Match Play</span>
+        </label>
+
+        <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 ${enabled ? '' : 'opacity-50 pointer-events-none'}`}>
+          <label className="block">
+            <span className="text-xs text-rd-ink/60 block">Display name</span>
+            <input
+              type="text"
+              className="w-full border rounded px-2 py-1 mt-0.5"
+              placeholder={`e.g. ${divisionName} MP`}
+              value={name}
+              onChange={(e) => patch({ name: e.target.value })}
+            />
+          </label>
+        </div>
+      </div>
+
+      {enabled && (
+        <div className="rd-card p-4 space-y-3">
+          <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1 text-sm">
+            <div>
+              <span className="text-rd-ink/60">{divisionName} opt-ins:</span>{' '}
+              <span className="font-semibold text-rd-navy">{optedPool.length}</span>
+            </div>
+            <div>
+              <span className="text-rd-ink/60">Bracket size:</span>{' '}
+              <span className="font-semibold text-rd-navy">
+                {computedSize > 0 ? computedSize : '—'}
+              </span>
+            </div>
+            <div>
+              <span className="text-rd-ink/60">Last generated:</span>{' '}
+              <span className="text-rd-ink/80">
+                {generatedAt
+                  ? new Date(generatedAt).toLocaleString('en-GB', {
+                      dateStyle: 'medium',
+                      timeStyle: 'short',
+                    })
+                  : 'never'}
+              </span>
+            </div>
+          </div>
+          <div className="text-xs text-rd-ink/60 flex flex-wrap gap-x-4 gap-y-1 pt-1 border-t border-rd-cream/60">
+            <span className="text-rd-ink/50">Across all divisions:</span>
+            {course.divisions.map((d) => (
+              <span key={d.code} className={d.code === divisionCode ? 'text-rd-navy font-semibold' : ''}>
+                {d.name || d.code} {optInsByDivision[d.code] ?? 0}
+              </span>
+            ))}
+            <span className="text-rd-ink/50">
+              · total opted in {totalOptedIn}
+              {optedOutCount > 0 ? ` · opted out ${optedOutCount}` : ''}
+            </span>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              className="px-3 py-1.5 text-sm bg-rd-navy text-white rounded font-medium disabled:opacity-50"
+              disabled={status.kind === 'busy' || optedPool.length < 2}
+              onClick={onGenerate}
+              title={
+                optedPool.length < 2
+                  ? 'Need at least 2 opt-ins to generate a bracket.'
+                  : undefined
+              }
+            >
+              Generate bracket
+            </button>
+            <button
+              type="button"
+              className="px-3 py-1.5 text-sm rounded border border-rd-cream text-rd-navy disabled:opacity-50"
+              disabled={status.kind === 'busy' || divisionMatches.length === 0}
+              onClick={onReset}
+            >
+              Reset bracket
+            </button>
+          </div>
+
+          {status.msg && (
+            <span
+              className={`text-sm block ${
+                status.kind === 'err'
+                  ? 'text-red-700'
+                  : status.kind === 'ok'
+                    ? 'text-green-700'
+                    : 'text-rd-ink/70'
+              }`}
+            >
+              {status.msg}
+            </span>
+          )}
+
+          {/* Quick verify: list the names + HIs of players who'd land in this
+              bracket. Helps catch "I expected Jane in Gold but she's Silver"
+              before generating. */}
+          <details className="text-xs">
+            <summary className="cursor-pointer text-rd-navy hover:underline">
+              {optedPool.length === 0
+                ? `Show players in ${divisionName} (none)`
+                : `Show ${optedPool.length} player${
+                    optedPool.length === 1 ? '' : 's'
+                  } in ${divisionName}`}
+            </summary>
+            {optedPool.length > 0 ? (
+              <ul className="mt-2 columns-2 gap-x-4">
+                {[...optedPool]
+                  .sort((a, b) => a.hi - b.hi || a.lastName.localeCompare(b.lastName))
+                  .map((p) => (
+                    <li
+                      key={p.saId}
+                      className="text-rd-ink/80 flex items-baseline gap-2"
+                    >
+                      <span className="flex-1 truncate">{fullNameInline(p)}</span>
+                      <span className="tabular-nums text-rd-ink/50">
+                        HI {p.hi}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-rd-ink/60">
+                No players resolve to {divisionName} (HI {course.divisions.find((d) => d.code === divisionCode)?.hiMin}–
+                {course.divisions.find((d) => d.code === divisionCode)?.hiMax}). Check
+                division boundaries on the Divisions tab if you expected someone
+                here.
+              </p>
+            )}
+          </details>
+        </div>
+      )}
+
+      {enabled && divisionMatches.length > 0 && (
+        <div className="rd-card p-4 space-y-3">
+          <h3 className="text-sm font-semibold text-rd-navy uppercase tracking-wide">
+            Match results
+          </h3>
+          <p className="text-xs text-rd-ink/60">
+            Pick the winner and enter the result text (e.g. "1 up", "3 and 2",
+            "won on 19th"). Results cascade to later rounds automatically.
+            Re-entering an earlier round clears any downstream winner that's no
+            longer valid.
+          </p>
+          <div className="space-y-4">
+            {rounds.map((roundMatches, idx) => {
+              const round = idx + 1;
+              return (
+                <div key={round}>
+                  <div className="text-xs uppercase tracking-wide text-rd-ink/60 font-semibold mb-1">
+                    {roundLabel(round, totalRounds)}
+                  </div>
+                  <div className="rd-card overflow-x-auto">
+                    <table className="rd-table text-xs">
+                      <thead>
+                        <tr>
+                          <th>Match</th>
+                          <th>Player A</th>
+                          <th>Player B</th>
+                          <th>Winner</th>
+                          <th>Result</th>
+                          <th aria-label="Save"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {roundMatches.map((m) => (
+                          <MatchResultRow
+                            key={m.id}
+                            match={m}
+                            nameOf={nameOf}
+                            onSave={onSaveMatchResult}
+                            disabled={status.kind === 'busy'}
+                          />
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Local helper — avoids re-importing fullName up top with a new import line. */
+function fullNameInline(p: import('../types').Player): string {
+  return `${p.firstName} ${p.lastName}`.trim();
+}
+
+function MatchResultRow({
+  match,
+  nameOf,
+  onSave,
+  disabled,
+}: {
+  match: import('../types').Match;
+  nameOf: (saId: string | undefined) => string;
+  onSave: (id: string, winnerSaId: string | undefined, result: string) => void;
+  disabled: boolean;
+}) {
+  const isBye = match.result === 'bye';
+  const [winner, setWinner] = useState<string>(match.winnerSaId ?? '');
+  const [result, setResult] = useState<string>(match.result ?? '');
+
+  // Re-sync local state when the match prop changes (e.g. after propagation).
+  useEffect(() => {
+    setWinner(match.winnerSaId ?? '');
+    setResult(match.result ?? '');
+  }, [match.winnerSaId, match.result]);
+
+  const haveBoth = !!match.playerASaId && !!match.playerBSaId;
+  const dirty = (winner || '') !== (match.winnerSaId ?? '') || result !== (match.result ?? '');
+
+  if (isBye) {
+    return (
+      <tr className="text-rd-ink/50">
+        <td className="font-mono">{match.id}</td>
+        <td>{nameOf(match.playerASaId)}</td>
+        <td>{nameOf(match.playerBSaId)}</td>
+        <td colSpan={3} className="italic">bye — auto-advanced</td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr>
+      <td className="font-mono">{match.id}</td>
+      <td>{nameOf(match.playerASaId) || <span className="text-rd-ink/40">—</span>}</td>
+      <td>{nameOf(match.playerBSaId) || <span className="text-rd-ink/40">—</span>}</td>
+      <td>
+        <select
+          className="border rounded px-1 py-0.5"
+          value={winner}
+          disabled={!haveBoth || disabled}
+          onChange={(e) => setWinner(e.target.value)}
+        >
+          <option value="">—</option>
+          {match.playerASaId && <option value={match.playerASaId}>A</option>}
+          {match.playerBSaId && <option value={match.playerBSaId}>B</option>}
+        </select>
+      </td>
+      <td>
+        <input
+          type="text"
+          className="border rounded px-1 py-0.5 w-28"
+          placeholder="e.g. 3 and 2"
+          value={result}
+          disabled={!haveBoth || disabled}
+          onChange={(e) => setResult(e.target.value)}
+        />
+      </td>
+      <td className="text-right">
+        <button
+          type="button"
+          className="text-xs text-rd-navy hover:underline disabled:opacity-40"
+          disabled={!dirty || disabled || !haveBoth}
+          onClick={() => onSave(match.id, winner || undefined, result)}
+        >
+          Save
+        </button>
+      </td>
+    </tr>
   );
 }
 
@@ -517,6 +877,10 @@ export function Config({ data }: { data: AppData }) {
     kind: 'idle' | 'busy' | 'ok' | 'err';
     msg?: string;
   }>({ kind: 'idle' });
+  const [matchPlayStatus, setMatchPlayStatus] = useState<{
+    kind: 'idle' | 'busy' | 'ok' | 'err';
+    msg?: string;
+  }>({ kind: 'idle' });
   const [cfg, setCfg] = useState<SheetsSettings | null>(loadSheetsSettings());
   const [showSettings, setShowSettings] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('event');
@@ -530,6 +894,7 @@ export function Config({ data }: { data: AppData }) {
     { id: 'divisions', label: 'Divisions' },
     { id: 'rules', label: 'Rules' },
     { id: 'tee-times', label: 'Tee Times' },
+    { id: 'match-play', label: 'Match Play' },
     { id: 'branding', label: 'Branding' },
   ];
 
@@ -664,6 +1029,147 @@ export function Config({ data }: { data: AppData }) {
       await data.reload();
     } catch (e) {
       setTeeTimesStatus({
+        kind: 'err',
+        msg: e instanceof Error ? e.message : String(e),
+      });
+    }
+  };
+
+  /** Match Play handlers. All operate per-division: each writes a fresh
+   *  full-tab payload that keeps OTHER divisions' rows intact. */
+
+  const handleGenerateBracket = async (divisionCode: DivisionCode) => {
+    const c = loadSheetsSettings();
+    if (!c) {
+      setMatchPlayStatus({
+        kind: 'err',
+        msg: 'No Sheet configured. Open Settings and set Sheet ID + Apps Script URL.',
+      });
+      return;
+    }
+    const divisionDraft = draft.divisions.find((d) => d.code === divisionCode);
+    if (!divisionDraft?.matchPlay?.enabled) {
+      setMatchPlayStatus({
+        kind: 'err',
+        msg: `Enable Match Play for ${divisionCode} first.`,
+      });
+      return;
+    }
+    // Default-opt-in: anyone whose matchPlay isn't explicitly `false` AND who
+    // actually plays in this division (after divisionOverride resolution).
+    const opted = data.players.filter(
+      (p) =>
+        p.matchPlay !== false &&
+        divisionFor(p, data.course)?.code === divisionCode
+    );
+    if (opted.length < 2) {
+      setMatchPlayStatus({
+        kind: 'err',
+        msg: `Need at least 2 opt-ins in ${divisionCode} to generate a bracket.`,
+      });
+      return;
+    }
+    const ok = window.confirm(
+      `This will overwrite the ${divisionCode} bracket with a fresh draw of ${opted.length} players. Continue?`
+    );
+    if (!ok) return;
+    setMatchPlayStatus({ kind: 'busy', msg: `Generating ${divisionCode}…` });
+    try {
+      const bracket = generateBracket(opted, divisionCode);
+      // Merge: drop any existing matches for this division, append the new ones.
+      const others = data.matches.filter((m) => m.divisionCode !== divisionCode);
+      await saveMatches(c, [...others, ...bracket]);
+      // Persist the generated-at on the Division's config.
+      const generatedAt = new Date().toISOString();
+      setDraft((d) => ({
+        ...d,
+        divisions: d.divisions.map((dv) =>
+          dv.code === divisionCode
+            ? {
+                ...dv,
+                matchPlay: { ...(dv.matchPlay ?? { enabled: true }), bracketGeneratedAt: generatedAt },
+              }
+            : dv
+        ),
+      }));
+      setMatchPlayStatus({
+        kind: 'ok',
+        msg: `${divisionCode} bracket saved (${bracket.length} matches). Save Course below to record the generated-at time.`,
+      });
+      await data.reload();
+    } catch (e) {
+      setMatchPlayStatus({
+        kind: 'err',
+        msg: e instanceof Error ? e.message : String(e),
+      });
+    }
+  };
+
+  const handleResetBracket = async (divisionCode: DivisionCode) => {
+    const c = loadSheetsSettings();
+    if (!c) {
+      setMatchPlayStatus({ kind: 'err', msg: 'No Sheet configured.' });
+      return;
+    }
+    const ok = window.confirm(
+      `This will clear the ${divisionCode} bracket. All entered results for ${divisionCode} will be lost. Continue?`
+    );
+    if (!ok) return;
+    setMatchPlayStatus({ kind: 'busy', msg: `Clearing ${divisionCode}…` });
+    try {
+      const others = data.matches.filter((m) => m.divisionCode !== divisionCode);
+      // If others is empty, the whole tab is wiped via clearMatches; otherwise
+      // a bulk-replace with just the remaining rows is the cheapest path.
+      if (others.length === 0) {
+        await clearMatches(c);
+      } else {
+        await saveMatches(c, others);
+      }
+      setDraft((d) => ({
+        ...d,
+        divisions: d.divisions.map((dv) =>
+          dv.code === divisionCode
+            ? {
+                ...dv,
+                matchPlay: { ...(dv.matchPlay ?? { enabled: true }), bracketGeneratedAt: undefined },
+              }
+            : dv
+        ),
+      }));
+      setMatchPlayStatus({ kind: 'ok', msg: `${divisionCode} bracket cleared.` });
+      await data.reload();
+    } catch (e) {
+      setMatchPlayStatus({
+        kind: 'err',
+        msg: e instanceof Error ? e.message : String(e),
+      });
+    }
+  };
+
+  const handleSaveMatchResult = async (
+    matchId: string,
+    divisionCode: DivisionCode,
+    winnerSaId: string | undefined,
+    result: string
+  ) => {
+    const c = loadSheetsSettings();
+    if (!c) {
+      setMatchPlayStatus({ kind: 'err', msg: 'No Sheet configured.' });
+      return;
+    }
+    setMatchPlayStatus({ kind: 'busy', msg: 'Saving result…' });
+    try {
+      const updated = data.matches.map((m) =>
+        m.id === matchId && m.divisionCode === divisionCode
+          ? { ...m, winnerSaId, result }
+          : m
+      );
+      const propagated = propagateAll(updated);
+      await saveMatches(c, propagated);
+      setMatchPlayStatus({ kind: 'ok', msg: 'Result saved.' });
+      await data.reload();
+    } catch (e) {
+      setMatchPlayStatus({
         kind: 'err',
         msg: e instanceof Error ? e.message : String(e),
       });
@@ -913,6 +1419,55 @@ export function Config({ data }: { data: AppData }) {
           generateStatus={teeTimesStatus}
           hasDay1Scores={hasDay1Scores}
         />
+      )}
+
+      {activeTab === 'match-play' && (
+        <div className="rd-card p-4">
+          {draft.divisions.length === 0 ? (
+            <p className="text-sm text-rd-ink/60">
+              Add a division first under Divisions to configure Match Play.
+            </p>
+          ) : (
+            <>
+              <Tabs
+                tabs={draft.divisions.map((d) => ({
+                  id: d.code,
+                  label: d.name || `Division ${d.code}`,
+                }))}
+                active={activeDivisionCode}
+                onChange={setActiveDivisionCode}
+              />
+              {(() => {
+                const div = draft.divisions.find((d) => d.code === activeDivisionCode);
+                if (!div) return null;
+                return (
+                  <MatchPlayEditor
+                    divisionCode={div.code}
+                    divisionName={div.name || `Division ${div.code}`}
+                    course={data.course}
+                    players={data.players}
+                    matches={data.matches}
+                    matchPlay={div.matchPlay}
+                    onChange={(mp) =>
+                      setDraft((d) => ({
+                        ...d,
+                        divisions: d.divisions.map((dv) =>
+                          dv.code === div.code ? { ...dv, matchPlay: mp } : dv
+                        ),
+                      }))
+                    }
+                    onGenerate={() => void handleGenerateBracket(div.code)}
+                    onReset={() => void handleResetBracket(div.code)}
+                    onSaveMatchResult={(id, w, r) =>
+                      void handleSaveMatchResult(id, div.code, w, r)
+                    }
+                    status={matchPlayStatus}
+                  />
+                );
+              })()}
+            </>
+          )}
+        </div>
       )}
 
       {activeTab === 'divisions' && (

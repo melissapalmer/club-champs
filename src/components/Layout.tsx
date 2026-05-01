@@ -1,9 +1,9 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useIsAdmin } from '../admin';
 import { resolveAssetUrl } from '../theme';
-import type { Course, TeeTime } from '../types';
+import type { Course, Match, TeeTime } from '../types';
 
-type NavCtx = { course: Course | null; teeTimes: TeeTime[] };
+type NavCtx = { course: Course | null; teeTimes: TeeTime[]; matches: Match[] };
 
 type NavItem = {
   to: string;
@@ -33,6 +33,13 @@ const NAV: NavItem[] = [
   { to: '/scores', label: 'Scores', end: false },
   { to: '/eclectic', label: 'Eclectic', end: false },
   { to: '/results', label: 'Results', end: false },
+  {
+    to: '/match-play',
+    label: 'Match Play',
+    end: false,
+    visibleWhen: ({ course, matches }) =>
+      !!course?.divisions?.some((d) => d.matchPlay?.enabled) || matches.length > 0,
+  },
   { to: '/players', label: 'Players', end: false, adminOnly: true },
   { to: '/manage-players', label: 'Manage Players', end: false, adminOnly: true },
   { to: '/config', label: 'Config', end: false, adminOnly: true },
@@ -45,14 +52,16 @@ function formatTime(d: Date): string {
 export function Layout({
   course,
   teeTimes = [],
+  matches = [],
   lastChanged = null,
 }: {
   course: Course | null;
   teeTimes?: TeeTime[];
+  matches?: Match[];
   lastChanged?: Date | null;
 }) {
   const admin = useIsAdmin();
-  const ctx: NavCtx = { course, teeTimes };
+  const ctx: NavCtx = { course, teeTimes, matches };
   const items = NAV.filter(
     (item) =>
       (!item.adminOnly || admin) &&

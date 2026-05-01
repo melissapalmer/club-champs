@@ -7,6 +7,7 @@ type Draft = {
   saId: string;
   hi: string; // kept as string so the input can be cleared mid-typing
   divisionOverride: '' | 'A' | 'B' | 'C' | 'D';
+  matchPlay: boolean;
 };
 
 function toDraft(p: Player | null): Draft {
@@ -16,6 +17,9 @@ function toDraft(p: Player | null): Draft {
     saId: p?.saId ?? '',
     hi: p == null ? '' : String(p.hi),
     divisionOverride: p?.divisionOverride ?? '',
+    // Default to opted-in: only `false` explicitly opts out. New players +
+    // legacy rows (no column) start checked.
+    matchPlay: p?.matchPlay !== false,
   };
 }
 
@@ -74,6 +78,9 @@ export function PlayerEditModal({
       hi: hiNum,
     };
     if (draft.divisionOverride) player.divisionOverride = draft.divisionOverride;
+    // Always write the explicit boolean so toggling off persists as `false`,
+    // not as absence (which would re-default to opted-in).
+    player.matchPlay = draft.matchPlay;
     onSave(player);
   };
 
@@ -160,6 +167,16 @@ export function PlayerEditModal({
             <span className="text-[11px] text-rd-ink/50">
               Forces this player into a specific division regardless of HI.
             </span>
+          </label>
+          <label className="flex items-center gap-2 sm:col-span-2">
+            <input
+              type="checkbox"
+              checked={draft.matchPlay}
+              onChange={(e) =>
+                setDraft((d) => ({ ...d, matchPlay: e.target.checked }))
+              }
+            />
+            <span className="text-sm">Opted in to Match Play</span>
           </label>
         </div>
 

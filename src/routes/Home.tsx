@@ -18,6 +18,8 @@ export function Home({ data }: { data: AppData }) {
     course.teeTimes?.enabled && course.teeTimes.day1Start && course.teeTimes.day2Start
       ? `Sat ${course.teeTimes.day1Start} · Sun ${course.teeTimes.day2Start}`
       : null;
+  const matchPlayShown =
+    course.divisions.some((d) => d.matchPlay?.enabled) || data.matches.length > 0;
 
   const cards: Card[] = [
     teeTimesShown && {
@@ -39,6 +41,11 @@ export function Home({ data }: { data: AppData }) {
       to: '/results',
       title: 'Results',
       desc: 'Prize winners by division and category.',
+    },
+    matchPlayShown && {
+      to: '/match-play',
+      title: 'Match Play',
+      desc: 'Knockout brackets per division.',
     },
   ].filter(Boolean) as Card[];
 
