@@ -10,7 +10,6 @@ import { Home } from './routes/Home';
 import { Leaderboard } from './routes/Leaderboard';
 import { ManagePlayers } from './routes/ManagePlayers';
 import { MatchPlay } from './routes/MatchPlay';
-import { Players } from './routes/Players';
 import { Results } from './routes/Results';
 import { Stats } from './routes/Stats';
 import { StatsPlayer } from './routes/StatsPlayer';
@@ -84,7 +83,6 @@ export function App() {
           <Route path="/stats/:saId" element={blocker ?? <StatsPlayer data={data!} />} />
           <Route path="/tee-times" element={blocker ?? <TeeTimes data={data!} />} />
           <Route path="/match-play" element={blocker ?? <MatchPlay data={data!} />} />
-          <Route path="/players" element={blocker ?? <Players data={data!} />} />
           <Route path="/enter" element={blocker ?? <Enter data={data!} />} />
           <Route path="/manage-players" element={blocker ?? <ManagePlayers data={data!} />} />
           <Route path="/config" element={blocker ?? <Config data={data!} />} />
