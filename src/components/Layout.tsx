@@ -31,8 +31,7 @@ const NAV: NavItem[] = [
       !!course?.teeTimes?.enabled || teeTimes.length > 0,
   },
   { to: '/scores', label: 'Scores', end: false },
-  { to: '/eclectic', label: 'Eclectic', end: false },
-  { to: '/results', label: 'Results', end: false },
+  { to: '/results', label: 'Prize Winners', end: false },
   { to: '/stats', label: 'Stats', end: false },
   {
     to: '/match-play',

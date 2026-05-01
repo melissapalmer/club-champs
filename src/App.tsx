@@ -5,7 +5,6 @@ import { Layout } from './components/Layout';
 import { SheetSettingsDialog } from './components/SheetSettingsDialog';
 import { useAppData } from './data';
 import { Config } from './routes/Config';
-import { Eclectic } from './routes/Eclectic';
 import { Enter } from './routes/Enter';
 import { Home } from './routes/Home';
 import { Leaderboard } from './routes/Leaderboard';
@@ -80,7 +79,6 @@ export function App() {
         <Route element={<Layout course={data?.course ?? null} teeTimes={data?.teeTimes ?? []} matches={data?.matches ?? []} lastChanged={data?.lastChanged ?? null} />}>
           <Route path="/" element={blocker ?? <Home data={data!} />} />
           <Route path="/scores" element={blocker ?? <Leaderboard data={data!} />} />
-          <Route path="/eclectic" element={blocker ?? <Eclectic data={data!} />} />
           <Route path="/results" element={blocker ?? <Results data={data!} />} />
           <Route path="/stats" element={blocker ?? <Stats data={data!} />} />
           <Route path="/stats/:saId" element={blocker ?? <StatsPlayer data={data!} />} />

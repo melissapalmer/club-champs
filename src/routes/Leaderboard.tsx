@@ -11,6 +11,7 @@ import {
   dayTotals,
   linesByDivision,
   rankWithCountOut,
+  rankWithTies,
   visibleDivisions,
   type PlayerLine,
   type RankResult,
@@ -567,6 +568,10 @@ export function Leaderboard({ data }: { data: AppData }) {
         </table>
       </div>
 
+      {!isStableford && (
+        <EclecticSection divLines={divLines} course={course} />
+      )}
+
       {editing && (
         <ScoreEditModal
           data={data}
@@ -574,6 +579,77 @@ export function Leaderboard({ data }: { data: AppData }) {
           onClose={() => setEditing(null)}
         />
       )}
+    </section>
+  );
+}
+
+/**
+ * Eclectic = best score per hole across both rounds (Sat/Sun), then net by
+ * applying eclecticHandicapPct of PH. Stableford divisions don't take part.
+ * Rendered inline below the main scoreboard for the active division.
+ */
+function EclecticSection({
+  divLines,
+  course,
+}: {
+  divLines: PlayerLine[];
+  course: Course;
+}) {
+  const ranks = rankWithTies(divLines.map((l) => l.eclectic.net));
+  const sorted = divLines
+    .map((line, i) => ({ line, rank: ranks[i] }))
+    .sort((a, b) => {
+      if (a.rank == null && b.rank == null) return 0;
+      if (a.rank == null) return 1;
+      if (b.rank == null) return -1;
+      return a.rank - b.rank;
+    });
+
+  return (
+    <section className="mt-6">
+      <h2 className="text-lg text-rd-navy font-serif mb-1">Eclectic</h2>
+      <p className="text-sm text-rd-ink/60 mb-3">
+        Best of Day 1 / Day 2 per hole · net = gross less {course.eclecticHandicapPct}% of PH.
+      </p>
+      <div className="rd-card overflow-x-auto">
+        <table className="rd-table">
+          <thead>
+            <tr>
+              <th>Pos</th>
+              <th>Player</th>
+              <th className="text-right">PH</th>
+              {HOLE_NUMS.map((h) => (
+                <th key={h} className="text-right">{h}</th>
+              ))}
+              <th className="text-right">Gross</th>
+              <th className="text-right">Net</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.length === 0 && (
+              <tr>
+                <td colSpan={23} className="text-center py-8 text-rd-ink/50">
+                  No players in this division.
+                </td>
+              </tr>
+            )}
+            {sorted.map(({ line, rank }) => (
+              <tr key={line.player.saId}>
+                <td className="font-semibold text-rd-navy">{rank ?? '—'}</td>
+                <td className="whitespace-nowrap">{fullName(line.player)}</td>
+                <td className="text-right">{num(line.ph)}</td>
+                {line.eclectic.holes.map((h, i) => (
+                  <td key={i} className="text-right tabular-nums">{h ?? '·'}</td>
+                ))}
+                <td className="text-right font-medium">{num(line.eclectic.gross)}</td>
+                <td className="text-right font-semibold text-rd-navy">
+                  {num(line.eclectic.net, 1)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }
