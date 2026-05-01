@@ -40,7 +40,6 @@ const NAV: NavItem[] = [
     visibleWhen: ({ course, matches }) =>
       !!course?.divisions?.some((d) => d.matchPlay?.enabled) || matches.length > 0,
   },
-  { to: '/players', label: 'Players', end: false, adminOnly: true },
   { to: '/manage-players', label: 'Manage Players', end: false, adminOnly: true },
   { to: '/config', label: 'Config', end: false, adminOnly: true },
 ];
