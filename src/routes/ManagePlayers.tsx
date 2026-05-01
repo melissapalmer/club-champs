@@ -136,13 +136,14 @@ export function ManagePlayers({ data }: { data: AppData }) {
               <th>SA ID</th>
               <th>HI</th>
               <th>Division</th>
+              <th>MP</th>
               <th aria-label="Actions"></th>
             </tr>
           </thead>
           <tbody>
             {sorted.length === 0 ? (
               <tr>
-                <td colSpan={5} className="text-center py-8 text-rd-ink/50">
+                <td colSpan={6} className="text-center py-8 text-rd-ink/50">
                   No players yet — click <strong>+ Add player</strong> to start.
                 </td>
               </tr>
@@ -158,6 +159,23 @@ export function ManagePlayers({ data }: { data: AppData }) {
                       {division?.name ?? '—'}
                       {p.divisionOverride && (
                         <span className="ml-1 text-xs text-rd-gold">(override)</span>
+                      )}
+                    </td>
+                    <td>
+                      {p.matchPlay === false ? (
+                        <span
+                          className="text-xs text-rd-ink/40"
+                          title="Opted out of Match Play"
+                        >
+                          opt-out
+                        </span>
+                      ) : (
+                        <span
+                          className="text-xs uppercase tracking-wide px-1.5 py-0.5 rounded bg-rd-gold/20 text-rd-navy font-semibold"
+                          title="In the Match Play pool"
+                        >
+                          MP
+                        </span>
                       )}
                     </td>
                     <td className="whitespace-nowrap text-right">

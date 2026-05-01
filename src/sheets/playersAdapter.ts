@@ -21,6 +21,8 @@ export async function upsertPlayer(
       saId: player.saId,
       hi: player.hi,
       division: player.divisionOverride ?? '',
+      matchPlay:
+        player.matchPlay === true ? 'TRUE' : player.matchPlay === false ? 'FALSE' : '',
     },
   });
 }

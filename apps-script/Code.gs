@@ -37,13 +37,15 @@ const PLAYERS_TAB = 'Players';
 const SCORES_TAB = 'Scores';
 const COURSE_TAB = 'Course';
 const TEE_TIMES_TAB = 'TeeTimes';
+const MATCHES_TAB = 'Matches';
 
-const PLAYERS_HEADERS = ['firstName', 'lastName', 'saId', 'hi', 'division'];
+const PLAYERS_HEADERS = ['firstName', 'lastName', 'saId', 'hi', 'division', 'matchPlay'];
 const SCORE_HOLE_COLS = Array.from({ length: 18 }, function (_, i) {
   return 'h' + (i + 1);
 });
 const SCORES_HEADERS = ['saId', 'day'].concat(SCORE_HOLE_COLS);
 const TEE_TIMES_HEADERS = ['day', 'time', 'saId', 'name'];
+const MATCHES_HEADERS = ['id', 'round', 'slot', 'playerASaId', 'playerBSaId', 'winnerSaId', 'result'];
 
 function doPost(e) {
   try {
@@ -68,6 +70,12 @@ function doPost(e) {
         break;
       case 'saveTeeTimes':
         result = saveTeeTimes(body.payload);
+        break;
+      case 'saveMatches':
+        result = saveMatches(body.payload);
+        break;
+      case 'clearMatches':
+        result = clearMatches();
         break;
       default:
         return jsonResponse({ ok: false, error: 'unknown_action: ' + action }, 400);
@@ -274,4 +282,55 @@ function saveTeeTimes(payload) {
       .setValues(newRows);
   }
   return { day: payload.day, rows: payload.rows.length };
+}
+
+// ---- Match Play save (full bracket replace) ----------------------------
+
+/**
+ * Bulk replace the Matches tab. Mirrors saveCourse's clear-and-rewrite —
+ * fine for ≤32 rows. Used both for Generate (fresh bracket) and per-result
+ * save (writing the propagated array). Atomicity matters more than incremental
+ * cost at this scale.
+ *
+ * Payload: { rows: [{ id, round, slot, playerASaId, playerBSaId, winnerSaId, result }, ...] }
+ *
+ * Creates the tab + header row on first call.
+ */
+function saveMatches(payload) {
+  if (!payload || !Array.isArray(payload.rows)) {
+    throw new Error('saveMatches needs { rows: [...] }');
+  }
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  let sheet = ss.getSheetByName(MATCHES_TAB);
+  if (!sheet) {
+    sheet = ss.insertSheet(MATCHES_TAB);
+  }
+  // Clear and rewrite: header + all rows.
+  sheet.clear();
+  const out = [MATCHES_HEADERS.slice()];
+  payload.rows.forEach(function (r) {
+    out.push([
+      String(r.id || ''),
+      Number(r.round) || 0,
+      Number(r.slot) || 0,
+      String(r.playerASaId || ''),
+      String(r.playerBSaId || ''),
+      String(r.winnerSaId || ''),
+      String(r.result || ''),
+    ]);
+  });
+  sheet.getRange(1, 1, out.length, MATCHES_HEADERS.length).setValues(out);
+  return { rows: payload.rows.length };
+}
+
+/** Wipe the Matches tab — header preserved, all data rows removed. */
+function clearMatches() {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const sheet = ss.getSheetByName(MATCHES_TAB);
+  if (!sheet) return { cleared: 0 };
+  const lastRow = sheet.getLastRow();
+  if (lastRow >= 2) {
+    sheet.getRange(2, 1, lastRow - 1, MATCHES_HEADERS.length).clearContent();
+  }
+  return { cleared: Math.max(0, lastRow - 1) };
 }

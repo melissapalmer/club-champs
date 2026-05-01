@@ -132,6 +132,40 @@ export type TeeTime = {
   name: string;
 };
 
+export type MatchPlayConfig = {
+  /** Master flag. When false, nav item is hidden and /match-play shows a "not enabled" state. */
+  enabled: boolean;
+  /** Display name for the bracket, e.g. "Bronze Match Play Final". */
+  name?: string;
+  /** ISO timestamp set when admin clicks Generate. Used to show "last regenerated at…". */
+  bracketGeneratedAt?: string;
+  /** Optional restriction to one division. Absent ⇒ open to all opted-in players. */
+  divisionCode?: DivisionCode;
+};
+
+/**
+ * One match in the knockout bracket. Matches are pre-generated up front for the
+ * full bracket; rounds 2+ start with empty playerASaId/playerBSaId until the
+ * previous round resolves and `propagateAll` slots winners in.
+ *
+ * id format: "round-slot" (e.g. "1-0", "3-1"). Even slot in round R feeds
+ * playerA of round R+1 slot floor(s/2); odd slot feeds playerB.
+ *
+ * Bye encoding: round-1 match where exactly one of playerA/B is set has
+ * winnerSaId == that side and result === "bye". The engine auto-resolves byes
+ * during generation so they propagate cleanly into round 2.
+ */
+export type Match = {
+  id: string;
+  round: number;
+  slot: number;
+  playerASaId?: string;
+  playerBSaId?: string;
+  winnerSaId?: string;
+  /** Free text — golf match-play conventions: "1 up", "3 and 2", "won on 19th", "bye". */
+  result?: string;
+};
+
 export type Course = {
   club: string;
   event: string;
@@ -148,6 +182,8 @@ export type Course = {
   countOut?: CountOutConfig;
   /** Optional tee-time settings. Absent or `enabled:false` ⇒ Tee Times tab hidden. */
   teeTimes?: TeeTimeConfig;
+  /** Optional match-play settings. Absent or `enabled:false` ⇒ Match Play tab hidden. */
+  matchPlay?: MatchPlayConfig;
 };
 
 export type Player = {
@@ -156,6 +192,8 @@ export type Player = {
   saId: string;
   hi: number;
   divisionOverride?: DivisionCode;
+  /** Per-player opt-in flag for the Match Play knockout bracket. */
+  matchPlay?: boolean;
 };
 
 export type DayScore = {
