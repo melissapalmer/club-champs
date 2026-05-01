@@ -60,6 +60,8 @@ export type DivisionConfig = {
    *   - count-out runs on stableford-points-per-hole (highest wins)
    */
   format?: DivisionFormat;
+  /** Optional per-division Match Play knockout. Absent ⇒ this division has no bracket. */
+  matchPlay?: MatchPlayConfig;
 };
 
 export type BrandingColors = {
@@ -132,15 +134,18 @@ export type TeeTime = {
   name: string;
 };
 
+/**
+ * Per-division Match Play config. Each division independently decides
+ * whether to run a knockout bracket. The Match Play tab on the public
+ * site shows a sub-tab per division that has `enabled: true` OR has
+ * persisted matches.
+ */
 export type MatchPlayConfig = {
-  /** Master flag. When false, nav item is hidden and /match-play shows a "not enabled" state. */
   enabled: boolean;
-  /** Display name for the bracket, e.g. "Bronze Match Play Final". */
+  /** Display name for the bracket, e.g. "Bronze Match Play". Falls back to division name. */
   name?: string;
-  /** ISO timestamp set when admin clicks Generate. Used to show "last regenerated at…". */
+  /** ISO timestamp set when admin clicks Generate. Surfaces "last generated at…". */
   bracketGeneratedAt?: string;
-  /** Optional restriction to one division. Absent ⇒ open to all opted-in players. */
-  divisionCode?: DivisionCode;
 };
 
 /**
@@ -156,7 +161,14 @@ export type MatchPlayConfig = {
  * during generation so they propagate cleanly into round 2.
  */
 export type Match = {
+  /**
+   * "round-slot" within the division's bracket (e.g. "1-0", "3-1").
+   * Brackets are scoped per division, so id alone is NOT a global key —
+   * use (divisionCode, id) as the composite key.
+   */
   id: string;
+  /** Which division's bracket this match belongs to. */
+  divisionCode: DivisionCode;
   round: number;
   slot: number;
   playerASaId?: string;
@@ -182,8 +194,6 @@ export type Course = {
   countOut?: CountOutConfig;
   /** Optional tee-time settings. Absent or `enabled:false` ⇒ Tee Times tab hidden. */
   teeTimes?: TeeTimeConfig;
-  /** Optional match-play settings. Absent or `enabled:false` ⇒ Match Play tab hidden. */
-  matchPlay?: MatchPlayConfig;
 };
 
 export type Player = {

@@ -240,6 +240,8 @@ function CountOutEditor({
 }
 
 function MatchPlayEditor({
+  divisionCode,
+  divisionName,
   course,
   players,
   matches,
@@ -250,6 +252,8 @@ function MatchPlayEditor({
   onSaveMatchResult,
   status,
 }: {
+  divisionCode: DivisionCode;
+  divisionName: string;
   course: Course;
   players: import('../types').Player[];
   matches: import('../types').Match[];
@@ -262,18 +266,32 @@ function MatchPlayEditor({
 }) {
   const enabled = !!matchPlay?.enabled;
   const name = matchPlay?.name ?? '';
-  const divisionCode = matchPlay?.divisionCode ?? '';
   const generatedAt = matchPlay?.bracketGeneratedAt;
 
   const patch = (next: Partial<import('../types').MatchPlayConfig>) =>
     onChange({ ...(matchPlay ?? { enabled: false }), enabled, name, ...next });
 
+  // Pool: players whose live division resolves to this one, AND who haven't
+  // explicitly opted out. (Default-opt-in.)
   const optedPool = players.filter(
     (p) =>
       p.matchPlay !== false &&
-      (matchPlay?.divisionCode == null ||
-        divisionFor(p, course)?.code === matchPlay.divisionCode)
+      divisionFor(p, course)?.code === divisionCode
   );
+
+  // Distribution across all divisions, so the admin can see at a glance
+  // how the field is split (e.g. "Gold 0, Silver 8, Bronze 12, Copper 4").
+  const optInsByDivision = course.divisions.reduce<Record<string, number>>(
+    (acc, d) => {
+      acc[d.code] = players.filter(
+        (p) => p.matchPlay !== false && divisionFor(p, course)?.code === d.code
+      ).length;
+      return acc;
+    },
+    {}
+  );
+  const totalOptedIn = players.filter((p) => p.matchPlay !== false).length;
+  const optedOutCount = players.filter((p) => p.matchPlay === false).length;
 
   // Power-of-two-up size, mirroring the engine.
   const computedSize =
@@ -288,18 +306,21 @@ function MatchPlayEditor({
     return p ? fullNameInline(p) : `(${saId})`;
   };
 
-  const rounds = matchesByRound(matches);
+  const divisionMatches = matches.filter((m) => m.divisionCode === divisionCode);
+  const rounds = matchesByRound(divisionMatches);
   const totalRounds = rounds.length;
 
   return (
     <div className="space-y-4">
       <div className="rd-card p-4 space-y-3">
         <div>
-          <h2 className="text-lg text-rd-navy font-serif">Match Play</h2>
+          <h2 className="text-lg text-rd-navy font-serif">
+            {divisionName} Match Play
+          </h2>
           <p className="text-xs text-rd-ink/60 mt-1">
-            Single-elimination knockout. Players are seeded by HI; top seeds get
-            byes when opt-ins isn't a power of 2. Players opt in/out individually
-            via Manage Players (default: opted in).
+            Single-elimination knockout for {divisionName}. Players are seeded
+            by HI; top seeds get byes when opt-ins isn't a power of 2. Players
+            opt in/out individually via Manage Players (default: opted in).
           </p>
         </div>
 
@@ -309,7 +330,7 @@ function MatchPlayEditor({
             checked={enabled}
             onChange={(e) => patch({ enabled: e.target.checked })}
           />
-          <span className="text-sm">Enable Match Play</span>
+          <span className="text-sm">Enable {divisionName} Match Play</span>
         </label>
 
         <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 ${enabled ? '' : 'opacity-50 pointer-events-none'}`}>
@@ -318,29 +339,10 @@ function MatchPlayEditor({
             <input
               type="text"
               className="w-full border rounded px-2 py-1 mt-0.5"
-              placeholder="e.g. Bronze MP Final"
+              placeholder={`e.g. ${divisionName} MP`}
               value={name}
               onChange={(e) => patch({ name: e.target.value })}
             />
-          </label>
-          <label className="block">
-            <span className="text-xs text-rd-ink/60 block">Restrict to division</span>
-            <select
-              className="w-full border rounded px-2 py-1 mt-0.5"
-              value={divisionCode}
-              onChange={(e) =>
-                patch({
-                  divisionCode: (e.target.value || undefined) as DivisionCode | undefined,
-                })
-              }
-            >
-              <option value="">(any — all opted-in players)</option>
-              {course.divisions.map((d) => (
-                <option key={d.code} value={d.code}>
-                  {d.code} — {d.name}
-                </option>
-              ))}
-            </select>
           </label>
         </div>
       </div>
@@ -349,7 +351,7 @@ function MatchPlayEditor({
         <div className="rd-card p-4 space-y-3">
           <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1 text-sm">
             <div>
-              <span className="text-rd-ink/60">Opt-ins:</span>{' '}
+              <span className="text-rd-ink/60">{divisionName} opt-ins:</span>{' '}
               <span className="font-semibold text-rd-navy">{optedPool.length}</span>
             </div>
             <div>
@@ -370,6 +372,18 @@ function MatchPlayEditor({
               </span>
             </div>
           </div>
+          <div className="text-xs text-rd-ink/60 flex flex-wrap gap-x-4 gap-y-1 pt-1 border-t border-rd-cream/60">
+            <span className="text-rd-ink/50">Across all divisions:</span>
+            {course.divisions.map((d) => (
+              <span key={d.code} className={d.code === divisionCode ? 'text-rd-navy font-semibold' : ''}>
+                {d.name || d.code} {optInsByDivision[d.code] ?? 0}
+              </span>
+            ))}
+            <span className="text-rd-ink/50">
+              · total opted in {totalOptedIn}
+              {optedOutCount > 0 ? ` · opted out ${optedOutCount}` : ''}
+            </span>
+          </div>
 
           <div className="flex flex-wrap gap-3">
             <button
@@ -388,7 +402,7 @@ function MatchPlayEditor({
             <button
               type="button"
               className="px-3 py-1.5 text-sm rounded border border-rd-cream text-rd-navy disabled:opacity-50"
-              disabled={status.kind === 'busy' || matches.length === 0}
+              disabled={status.kind === 'busy' || divisionMatches.length === 0}
               onClick={onReset}
             >
               Reset bracket
@@ -408,10 +422,47 @@ function MatchPlayEditor({
               {status.msg}
             </span>
           )}
+
+          {/* Quick verify: list the names + HIs of players who'd land in this
+              bracket. Helps catch "I expected Jane in Gold but she's Silver"
+              before generating. */}
+          <details className="text-xs">
+            <summary className="cursor-pointer text-rd-navy hover:underline">
+              {optedPool.length === 0
+                ? `Show players in ${divisionName} (none)`
+                : `Show ${optedPool.length} player${
+                    optedPool.length === 1 ? '' : 's'
+                  } in ${divisionName}`}
+            </summary>
+            {optedPool.length > 0 ? (
+              <ul className="mt-2 columns-2 gap-x-4">
+                {[...optedPool]
+                  .sort((a, b) => a.hi - b.hi || a.lastName.localeCompare(b.lastName))
+                  .map((p) => (
+                    <li
+                      key={p.saId}
+                      className="text-rd-ink/80 flex items-baseline gap-2"
+                    >
+                      <span className="flex-1 truncate">{fullNameInline(p)}</span>
+                      <span className="tabular-nums text-rd-ink/50">
+                        HI {p.hi}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-rd-ink/60">
+                No players resolve to {divisionName} (HI {course.divisions.find((d) => d.code === divisionCode)?.hiMin}–
+                {course.divisions.find((d) => d.code === divisionCode)?.hiMax}). Check
+                division boundaries on the Divisions tab if you expected someone
+                here.
+              </p>
+            )}
+          </details>
         </div>
       )}
 
-      {enabled && matches.length > 0 && (
+      {enabled && divisionMatches.length > 0 && (
         <div className="rd-card p-4 space-y-3">
           <h3 className="text-sm font-semibold text-rd-navy uppercase tracking-wide">
             Match results
@@ -984,7 +1035,10 @@ export function Config({ data }: { data: AppData }) {
     }
   };
 
-  const handleGenerateBracket = async () => {
+  /** Match Play handlers. All operate per-division: each writes a fresh
+   *  full-tab payload that keeps OTHER divisions' rows intact. */
+
+  const handleGenerateBracket = async (divisionCode: DivisionCode) => {
     const c = loadSheetsSettings();
     if (!c) {
       setMatchPlayStatus({
@@ -993,38 +1047,54 @@ export function Config({ data }: { data: AppData }) {
       });
       return;
     }
-    if (!draft.matchPlay?.enabled) {
-      setMatchPlayStatus({ kind: 'err', msg: 'Enable Match Play above first.' });
+    const divisionDraft = draft.divisions.find((d) => d.code === divisionCode);
+    if (!divisionDraft?.matchPlay?.enabled) {
+      setMatchPlayStatus({
+        kind: 'err',
+        msg: `Enable Match Play for ${divisionCode} first.`,
+      });
       return;
     }
-    // Default-opt-in: anyone whose matchPlay isn't explicitly `false` counts.
+    // Default-opt-in: anyone whose matchPlay isn't explicitly `false` AND who
+    // actually plays in this division (after divisionOverride resolution).
     const opted = data.players.filter(
       (p) =>
         p.matchPlay !== false &&
-        (draft.matchPlay?.divisionCode == null ||
-          divisionFor(p, data.course)?.code === draft.matchPlay.divisionCode)
+        divisionFor(p, data.course)?.code === divisionCode
     );
     if (opted.length < 2) {
-      setMatchPlayStatus({ kind: 'err', msg: 'Need at least 2 opt-ins to generate a bracket.' });
+      setMatchPlayStatus({
+        kind: 'err',
+        msg: `Need at least 2 opt-ins in ${divisionCode} to generate a bracket.`,
+      });
       return;
     }
     const ok = window.confirm(
-      `This will overwrite the Matches tab with a fresh bracket of ${opted.length} players. Continue?`
+      `This will overwrite the ${divisionCode} bracket with a fresh draw of ${opted.length} players. Continue?`
     );
     if (!ok) return;
-    setMatchPlayStatus({ kind: 'busy', msg: 'Generating bracket…' });
+    setMatchPlayStatus({ kind: 'busy', msg: `Generating ${divisionCode}…` });
     try {
-      const bracket = generateBracket(opted);
-      await saveMatches(c, bracket);
-      // Persist the generated-at timestamp on the Course config too.
+      const bracket = generateBracket(opted, divisionCode);
+      // Merge: drop any existing matches for this division, append the new ones.
+      const others = data.matches.filter((m) => m.divisionCode !== divisionCode);
+      await saveMatches(c, [...others, ...bracket]);
+      // Persist the generated-at on the Division's config.
       const generatedAt = new Date().toISOString();
       setDraft((d) => ({
         ...d,
-        matchPlay: { ...(d.matchPlay ?? { enabled: true }), bracketGeneratedAt: generatedAt },
+        divisions: d.divisions.map((dv) =>
+          dv.code === divisionCode
+            ? {
+                ...dv,
+                matchPlay: { ...(dv.matchPlay ?? { enabled: true }), bracketGeneratedAt: generatedAt },
+              }
+            : dv
+        ),
       }));
       setMatchPlayStatus({
         kind: 'ok',
-        msg: `Bracket saved (${bracket.length} matches). Save Course settings below to record the generated-at time.`,
+        msg: `${divisionCode} bracket saved (${bracket.length} matches). Save Course below to record the generated-at time.`,
       });
       await data.reload();
     } catch (e) {
@@ -1035,27 +1105,38 @@ export function Config({ data }: { data: AppData }) {
     }
   };
 
-  const handleResetBracket = async () => {
+  const handleResetBracket = async (divisionCode: DivisionCode) => {
     const c = loadSheetsSettings();
     if (!c) {
-      setMatchPlayStatus({
-        kind: 'err',
-        msg: 'No Sheet configured.',
-      });
+      setMatchPlayStatus({ kind: 'err', msg: 'No Sheet configured.' });
       return;
     }
     const ok = window.confirm(
-      'This will wipe the Matches tab. All entered match results will be lost. Continue?'
+      `This will clear the ${divisionCode} bracket. All entered results for ${divisionCode} will be lost. Continue?`
     );
     if (!ok) return;
-    setMatchPlayStatus({ kind: 'busy', msg: 'Clearing matches…' });
+    setMatchPlayStatus({ kind: 'busy', msg: `Clearing ${divisionCode}…` });
     try {
-      await clearMatches(c);
+      const others = data.matches.filter((m) => m.divisionCode !== divisionCode);
+      // If others is empty, the whole tab is wiped via clearMatches; otherwise
+      // a bulk-replace with just the remaining rows is the cheapest path.
+      if (others.length === 0) {
+        await clearMatches(c);
+      } else {
+        await saveMatches(c, others);
+      }
       setDraft((d) => ({
         ...d,
-        matchPlay: { ...(d.matchPlay ?? { enabled: true }), bracketGeneratedAt: undefined },
+        divisions: d.divisions.map((dv) =>
+          dv.code === divisionCode
+            ? {
+                ...dv,
+                matchPlay: { ...(dv.matchPlay ?? { enabled: true }), bracketGeneratedAt: undefined },
+              }
+            : dv
+        ),
       }));
-      setMatchPlayStatus({ kind: 'ok', msg: 'Matches tab cleared.' });
+      setMatchPlayStatus({ kind: 'ok', msg: `${divisionCode} bracket cleared.` });
       await data.reload();
     } catch (e) {
       setMatchPlayStatus({
@@ -1065,7 +1146,12 @@ export function Config({ data }: { data: AppData }) {
     }
   };
 
-  const handleSaveMatchResult = async (matchId: string, winnerSaId: string | undefined, result: string) => {
+  const handleSaveMatchResult = async (
+    matchId: string,
+    divisionCode: DivisionCode,
+    winnerSaId: string | undefined,
+    result: string
+  ) => {
     const c = loadSheetsSettings();
     if (!c) {
       setMatchPlayStatus({ kind: 'err', msg: 'No Sheet configured.' });
@@ -1074,7 +1160,9 @@ export function Config({ data }: { data: AppData }) {
     setMatchPlayStatus({ kind: 'busy', msg: 'Saving result…' });
     try {
       const updated = data.matches.map((m) =>
-        m.id === matchId ? { ...m, winnerSaId, result } : m
+        m.id === matchId && m.divisionCode === divisionCode
+          ? { ...m, winnerSaId, result }
+          : m
       );
       const propagated = propagateAll(updated);
       await saveMatches(c, propagated);
@@ -1334,17 +1422,52 @@ export function Config({ data }: { data: AppData }) {
       )}
 
       {activeTab === 'match-play' && (
-        <MatchPlayEditor
-          course={data.course}
-          players={data.players}
-          matches={data.matches}
-          matchPlay={draft.matchPlay}
-          onChange={(mp) => setDraft((d) => ({ ...d, matchPlay: mp }))}
-          onGenerate={() => void handleGenerateBracket()}
-          onReset={() => void handleResetBracket()}
-          onSaveMatchResult={(id, w, r) => void handleSaveMatchResult(id, w, r)}
-          status={matchPlayStatus}
-        />
+        <div className="rd-card p-4">
+          {draft.divisions.length === 0 ? (
+            <p className="text-sm text-rd-ink/60">
+              Add a division first under Divisions to configure Match Play.
+            </p>
+          ) : (
+            <>
+              <Tabs
+                tabs={draft.divisions.map((d) => ({
+                  id: d.code,
+                  label: d.name || `Division ${d.code}`,
+                }))}
+                active={activeDivisionCode}
+                onChange={setActiveDivisionCode}
+              />
+              {(() => {
+                const div = draft.divisions.find((d) => d.code === activeDivisionCode);
+                if (!div) return null;
+                return (
+                  <MatchPlayEditor
+                    divisionCode={div.code}
+                    divisionName={div.name || `Division ${div.code}`}
+                    course={data.course}
+                    players={data.players}
+                    matches={data.matches}
+                    matchPlay={div.matchPlay}
+                    onChange={(mp) =>
+                      setDraft((d) => ({
+                        ...d,
+                        divisions: d.divisions.map((dv) =>
+                          dv.code === div.code ? { ...dv, matchPlay: mp } : dv
+                        ),
+                      }))
+                    }
+                    onGenerate={() => void handleGenerateBracket(div.code)}
+                    onReset={() => void handleResetBracket(div.code)}
+                    onSaveMatchResult={(id, w, r) =>
+                      void handleSaveMatchResult(id, div.code, w, r)
+                    }
+                    status={matchPlayStatus}
+                  />
+                );
+              })()}
+            </>
+          )}
+        </div>
       )}
 
       {activeTab === 'divisions' && (

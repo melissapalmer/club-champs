@@ -33,6 +33,7 @@ export async function saveMatches(
     payload: {
       rows: matches.map((m) => ({
         id: m.id,
+        divisionCode: m.divisionCode,
         round: m.round,
         slot: m.slot,
         playerASaId: m.playerASaId ?? '',

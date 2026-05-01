@@ -1,4 +1,4 @@
-import type { Match, Player } from '../types';
+import type { DivisionCode, Match, Player } from '../types';
 
 /**
  * Bracket engine for the Match Play knockout.
@@ -63,11 +63,12 @@ export function seedPlayers(players: Player[]): Player[] {
 }
 
 /**
- * Generate the full bracket from a list of opted-in players.
- * Returns matches for every round (round 1 with players + auto-resolved byes,
- * rounds 2..final empty until propagated).
+ * Generate the full bracket for one division. All returned matches are
+ * tagged with `divisionCode`. Round 1 has players + auto-resolved byes;
+ * rounds 2..final are empty placeholders that fill in as winners are
+ * entered.
  */
-export function generateBracket(opted: Player[]): Match[] {
+export function generateBracket(opted: Player[], divisionCode: DivisionCode): Match[] {
   const seeded = seedPlayers(opted);
   const K = seeded.length;
   const N = bracketSize(K);
@@ -77,12 +78,17 @@ export function generateBracket(opted: Player[]): Match[] {
   const round1Slots = N / 2;
   const matches: Match[] = [];
 
+  // IDs use an `m` prefix (e.g. `m1-0`, not `1-0`). The Sheet's gviz CSV
+  // export coerces values like "1-0" / "2-0" / "3-0" as invalid dates and
+  // returns them as empty strings, which silently drops those matches on read.
+  // The non-numeric prefix forces gviz to treat the column as text.
+
   for (let s = 0; s < round1Slots; s++) {
     const seedA = order[2 * s];
     const seedB = order[2 * s + 1];
     const playerA = seeded[seedA - 1];
     const playerB = seeded[seedB - 1];
-    const m: Match = { id: `1-${s}`, round: 1, slot: s };
+    const m: Match = { id: `m1-${s}`, divisionCode, round: 1, slot: s };
     if (playerA) m.playerASaId = playerA.saId;
     if (playerB) m.playerBSaId = playerB.saId;
     if (playerA && !playerB) {
@@ -100,7 +106,7 @@ export function generateBracket(opted: Player[]): Match[] {
   while (prevCount > 1) {
     const count = prevCount / 2;
     for (let s = 0; s < count; s++) {
-      matches.push({ id: `${round}-${s}`, round, slot: s });
+      matches.push({ id: `m${round}-${s}`, divisionCode, round, slot: s });
     }
     prevCount = count;
     round += 1;
@@ -110,23 +116,32 @@ export function generateBracket(opted: Player[]): Match[] {
 }
 
 /**
- * Walk the bracket in round order. For each match:
- *   1. If its stored winner is no longer one of its participants (because an
- *      earlier-round re-entry just changed who's playing here), clear the
- *      winner + result.
+ * Walk every bracket in round order. Operates on the full matches array
+ * (all divisions) but propagates within each division independently —
+ * round-1 slot 0 in division C feeds round-2 slot 0 in division C, etc.
+ *
+ * For each match:
+ *   1. If its stored winner is no longer one of its participants (because
+ *      an earlier-round re-entry just changed who's playing here), clear
+ *      the winner + result.
  *   2. Propagate the winner (or undefined) into the next round's match —
  *      playerA for an even slot, playerB for an odd slot.
  *
- * Doing both in the same forward pass means a chain of changes (re-enter
- * round 1 → round 2 invalidates → round 3 invalidates) cascades correctly
- * in a single call. Idempotent — a stable input produces an unchanged output.
+ * Single forward pass within each division means a chain of changes
+ * (re-enter round 1 → round 2 invalidates → round 3 invalidates) cascades
+ * correctly in one call. Idempotent.
  */
 export function propagateAll(matches: Match[]): Match[] {
   const next = matches.map((m) => ({ ...m }));
-  const byId = new Map<string, Match>();
-  for (const m of next) byId.set(m.id, m);
+  const byKey = new Map<string, Match>();
+  for (const m of next) byKey.set(`${m.divisionCode}|${m.id}`, m);
 
-  const sorted = [...next].sort((a, b) => a.round - b.round || a.slot - b.slot);
+  const sorted = [...next].sort(
+    (a, b) =>
+      a.divisionCode.localeCompare(b.divisionCode) ||
+      a.round - b.round ||
+      a.slot - b.slot
+  );
 
   for (const m of sorted) {
     if (m.winnerSaId) {
@@ -137,8 +152,8 @@ export function propagateAll(matches: Match[]): Match[] {
         m.result = undefined;
       }
     }
-    const childId = `${m.round + 1}-${Math.floor(m.slot / 2)}`;
-    const child = byId.get(childId);
+    const childKey = `${m.divisionCode}|m${m.round + 1}-${Math.floor(m.slot / 2)}`;
+    const child = byKey.get(childKey);
     if (!child) continue;
     const side = m.slot % 2 === 0 ? 'playerASaId' : 'playerBSaId';
     if (child[side] !== m.winnerSaId) {
@@ -172,4 +187,9 @@ export function matchesByRound(matches: Match[]): Match[][] {
   return Array.from(out.entries())
     .sort(([a], [b]) => a - b)
     .map(([, arr]) => arr);
+}
+
+/** Filter the full matches array down to one division's bracket. */
+export function matchesForDivision(matches: Match[], code: DivisionCode): Match[] {
+  return matches.filter((m) => m.divisionCode === code);
 }
