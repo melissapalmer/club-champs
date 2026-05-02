@@ -33,6 +33,11 @@ export function Home({ data }: { data: AppData }) {
       desc: 'Leaderboard division-by-division, with eclectic.',
     },
     {
+      to: '/stats',
+      title: 'Stats',
+      desc: 'Per-player round breakdowns and tournament stats.',
+    },
+    {
       to: '/results',
       title: 'Prize Winners',
       desc: 'By division and category.',
