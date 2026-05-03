@@ -6,10 +6,15 @@ import { SheetSettingsDialog } from './components/SheetSettingsDialog';
 import { useAppData } from './data';
 import { Config } from './routes/Config';
 import { Enter } from './routes/Enter';
+import { EnterAll } from './routes/EnterAll';
+import { EnterGroup } from './routes/EnterGroup';
+import { EnterGroupShort } from './routes/EnterGroupShort';
+import { EnterShort } from './routes/EnterShort';
 import { Home } from './routes/Home';
 import { Leaderboard } from './routes/Leaderboard';
 import { ManagePlayers } from './routes/ManagePlayers';
 import { MatchPlay } from './routes/MatchPlay';
+import { QRSheet } from './routes/QRSheet';
 import { Results } from './routes/Results';
 import { Stats } from './routes/Stats';
 import { StatsPlayer } from './routes/StatsPlayer';
@@ -75,6 +80,9 @@ export function App() {
   return (
     <>
       <Routes>
+        {/* /qr-sheet is rendered OUTSIDE the main Layout so the new tab is
+            chrome-free for printing. */}
+        <Route path="/qr-sheet" element={blocker ?? <QRSheet data={data!} />} />
         <Route element={<Layout course={data?.course ?? null} teeTimes={data?.teeTimes ?? []} matches={data?.matches ?? []} lastChanged={data?.lastChanged ?? null} />}>
           <Route path="/" element={blocker ?? <Home data={data!} />} />
           <Route path="/scores" element={blocker ?? <Leaderboard data={data!} />} />
@@ -84,6 +92,12 @@ export function App() {
           <Route path="/tee-times" element={blocker ?? <TeeTimes data={data!} />} />
           <Route path="/match-play" element={blocker ?? <MatchPlay data={data!} />} />
           <Route path="/enter" element={blocker ?? <Enter data={data!} />} />
+          <Route path="/enter-group" element={blocker ?? <EnterGroup data={data!} />} />
+          {/* Compact group URL — `/g/D1-0800-XKB97R` redirects to /enter-group. */}
+          <Route path="/g/:slug" element={blocker ?? <EnterGroupShort />} />
+          {/* Compact per-player magic link — `/p/{saId}-{TOKEN}` redirects to /enter. */}
+          <Route path="/p/:slug" element={blocker ?? <EnterShort />} />
+          <Route path="/enter-all" element={blocker ?? <EnterAll data={data!} />} />
           <Route path="/manage-players" element={blocker ?? <ManagePlayers data={data!} />} />
           <Route path="/config" element={blocker ?? <Config data={data!} />} />
         </Route>

@@ -9,8 +9,8 @@ import {
   stablefordTotal,
   teeRatings,
 } from '../scoring/engine';
-import { upsertScore } from '../sheets/scoresAdapter';
-import { loadSheetsSettings } from '../sheets/settings';
+import { submitScore, upsertScore, type ScoreRange } from '../sheets/scoresAdapter';
+import { loadSheetsSettings, loadSubmitScriptUrl } from '../sheets/settings';
 import type { DayScore, Player } from '../types';
 
 const HOLE_NUMS = Array.from({ length: 18 }, (_, i) => i + 1);
@@ -32,6 +32,8 @@ export function ScoreEntryPanel({
   initialSaId,
   initialDay = 1,
   onSaved,
+  submitToken,
+  clearOnSave = false,
 }: {
   data: AppData;
   /** When set, the player is fixed (no dropdown). Used by the modal flow. */
@@ -40,7 +42,18 @@ export function ScoreEntryPanel({
   initialSaId?: string;
   initialDay?: 1 | 2;
   /** Called after a successful save (commit OR download). */
-  onSaved?: () => void;
+  onSaved?: (info: { saId: string; day: 1 | 2; range: ScoreRange }) => void;
+  /**
+   * When set, route saves through the token-gated `submitScore` action
+   * instead of the admin `upsertScore`. Used by `/enter` (per-player magic
+   * link) and `/enter-all` (tent URL).
+   */
+  submitToken?: string;
+  /**
+   * After a successful save, clear the player + holes so the panel is ready
+   * for the next card. Used by the tent bulk-entry flow.
+   */
+  clearOnSave?: boolean;
 }) {
   const { players, scores } = data;
 
@@ -162,26 +175,43 @@ export function ScoreEntryPanel({
     return data.course.gender === 'women' ? h.siWomen : h.siMen;
   };
 
-  const onSave = async () => {
+  const saveRange = async (range: ScoreRange) => {
     if (!player) return;
-    const cfg = loadSheetsSettings();
-    if (!cfg) {
-      setStatus({
-        kind: 'err',
-        msg: 'No Sheet configured. Open the Settings dialog to set Sheet ID + Apps Script URL.',
-      });
-      return;
-    }
     const updated: DayScore = { saId: player.saId, day, holes };
     setStatus({ kind: 'busy', msg: 'Saving…' });
     try {
-      await upsertScore(cfg, updated);
+      if (submitToken) {
+        const scriptUrl = loadSubmitScriptUrl();
+        if (!scriptUrl) {
+          setStatus({
+            kind: 'err',
+            msg: 'This site isn’t configured for player score entry. Ask the organiser.',
+          });
+          return;
+        }
+        await submitScore(scriptUrl, submitToken, updated, range);
+      } else {
+        const cfg = loadSheetsSettings();
+        if (!cfg) {
+          setStatus({
+            kind: 'err',
+            msg: 'No Sheet configured. Open the Settings dialog to set Sheet ID + Apps Script URL.',
+          });
+          return;
+        }
+        await upsertScore(cfg, updated, range);
+      }
+      const label = range === 'front9' ? 'Front 9 saved.' : range === 'back9' ? 'Back 9 saved.' : 'Saved.';
       setStatus({
         kind: 'ok',
-        msg: 'Saved. Spectators see the update on the next refresh (~15 s).',
+        msg: `${label} Spectators see the update on the next refresh (~15 s).`,
       });
       await data.reload();
-      onSaved?.();
+      onSaved?.({ saId: player.saId, day, range });
+      if (clearOnSave) {
+        if (lockedSaId === undefined) setSaId('');
+        setHoles(emptyHoles());
+      }
     } catch (e) {
       setStatus({
         kind: 'err',
@@ -349,9 +379,24 @@ export function ScoreEntryPanel({
             <button
               className="px-4 py-2 bg-rd-navy text-white rounded font-medium disabled:opacity-50"
               disabled={status.kind === 'busy'}
-              onClick={() => void onSave()}
+              onClick={() => void saveRange('front9')}
             >
-              {status.kind === 'busy' ? 'Saving…' : 'Save'}
+              {status.kind === 'busy' ? 'Saving…' : 'Save front 9'}
+            </button>
+            <button
+              className="px-4 py-2 bg-rd-navy text-white rounded font-medium disabled:opacity-50"
+              disabled={status.kind === 'busy'}
+              onClick={() => void saveRange('back9')}
+            >
+              {status.kind === 'busy' ? 'Saving…' : 'Save back 9'}
+            </button>
+            <button
+              className="px-3 py-2 border border-rd-navy/40 text-rd-navy rounded text-sm disabled:opacity-50"
+              disabled={status.kind === 'busy'}
+              onClick={() => void saveRange('all')}
+              title="Save all 18 holes at once (overwrites both nines)"
+            >
+              Save 18
             </button>
             {status.msg && (
               <span

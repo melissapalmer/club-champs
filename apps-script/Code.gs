@@ -47,6 +47,15 @@ const PLAYERS_HEADERS = [
   "division",
   "matchPlay",
 ];
+
+// Script-properties keys.
+//   PLAYER_TOKEN_SALT: rotating salt; per-player tokens are HMAC-derived from
+//     (saId | salt | SHARED_SECRET) so they're never stored in the public
+//     Players sheet (which leaks via gviz). Rotating the salt invalidates all
+//     outstanding magic links — that's what regenerateEntryTokens does.
+//   TENT_ENTRY_TOKEN: the single rotating tent volunteer token.
+const PLAYER_TOKEN_SALT_PROP = "PLAYER_TOKEN_SALT";
+const TENT_TOKEN_PROP = "TENT_ENTRY_TOKEN";
 const SCORE_HOLE_COLS = Array.from({ length: 18 }, function (_, i) {
   return "h" + (i + 1);
 });
@@ -66,10 +75,22 @@ const MATCHES_HEADERS = [
 function doPost(e) {
   try {
     const body = JSON.parse(e.postData.contents || "{}");
+    const action = body.action;
+
+    // Token-gated player/marker entry: validated inside the handler against
+    // the per-player or per-group token. Admin SHARED_SECRET is NOT required —
+    // these are the public score-entry channels (QR / magic link / tent URL).
+    if (action === "submitScore") {
+      return jsonResponse({ ok: true, result: submitScore(body.payload) });
+    }
+    if (action === "submitScoreGroup") {
+      return jsonResponse({ ok: true, result: submitScoreGroup(body.payload) });
+    }
+
+    // Everything else requires the admin secret.
     if (body.secret !== SHARED_SECRET) {
       return jsonResponse({ ok: false, error: "unauthorised" }, 403);
     }
-    const action = body.action;
     let result;
     switch (action) {
       case "upsertScore":
@@ -92,6 +113,15 @@ function doPost(e) {
         break;
       case "clearMatches":
         result = clearMatches();
+        break;
+      case "regenerateEntryTokens":
+        result = regenerateEntryTokens();
+        break;
+      case "rotateTentToken":
+        result = rotateTentToken();
+        break;
+      case "getEntryUrls":
+        result = getEntryUrls(body.payload);
         break;
       default:
         return jsonResponse(
@@ -167,10 +197,25 @@ function ensureHeaders(sheet, expected) {
 
 // ---- Score upsert -------------------------------------------------------
 
+/**
+ * Upsert a player's day-score row.
+ *
+ * Payload: { saId, day, holes, range? }
+ *   - range = 'all' (default), 'front9' or 'back9'.
+ *     'front9' writes only h1..h9, preserving h10..h18 if a row exists.
+ *     'back9'  writes only h10..h18, preserving h1..h9.
+ *   - holes is always 18 entries; with a partial range only the relevant 9
+ *     are read.
+ */
 function upsertScore(payload) {
   if (!payload || !payload.saId || !payload.day || !payload.holes) {
     throw new Error("upsertScore needs { saId, day, holes }");
   }
+  const range = payload.range || "all";
+  if (range !== "all" && range !== "front9" && range !== "back9") {
+    throw new Error("upsertScore range must be 'all', 'front9' or 'back9'");
+  }
+
   const sheet = getSheet(SCORES_TAB);
   const headers = ensureHeaders(sheet, SCORES_HEADERS);
   const lastRow = sheet.getLastRow();
@@ -178,6 +223,7 @@ function upsertScore(payload) {
   const dayCol = headers.indexOf("day") + 1;
 
   let target = null;
+  let existing = null;
   if (lastRow >= 2) {
     const data = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
     for (let i = 0; i < data.length; i++) {
@@ -185,19 +231,28 @@ function upsertScore(payload) {
         String(data[i][idCol - 1]).trim() === String(payload.saId) &&
         Number(data[i][dayCol - 1]) === Number(payload.day)
       ) {
-        target = i + 2; // sheet row index
+        target = i + 2;
+        existing = data[i];
         break;
       }
     }
   }
 
-  const row = headers.map(function (h) {
+  const row = headers.map(function (h, colIdx) {
     if (h === "saId") return payload.saId;
     if (h === "day") return payload.day;
     const idx = parseInt(h.replace(/^h/, ""), 10);
     if (idx >= 1 && idx <= 18) {
-      const v = payload.holes[idx - 1];
-      return v == null || v === "" ? "" : v;
+      const inRange =
+        range === "all" ||
+        (range === "front9" && idx <= 9) ||
+        (range === "back9" && idx >= 10);
+      if (inRange) {
+        const v = payload.holes[idx - 1];
+        return v == null || v === "" ? "" : v;
+      }
+      // Out of range: preserve existing value, otherwise blank.
+      return existing ? existing[colIdx] : "";
     }
     return "";
   });
@@ -207,7 +262,7 @@ function upsertScore(payload) {
   } else {
     sheet.appendRow(row);
   }
-  return { saId: payload.saId, day: payload.day };
+  return { saId: payload.saId, day: payload.day, range: range };
 }
 
 // ---- Player upsert / remove --------------------------------------------
@@ -390,4 +445,311 @@ function clearMatches() {
     sheet.getRange(2, 1, lastRow - 1, MATCHES_HEADERS.length).clearContent();
   }
   return { cleared: Math.max(0, lastRow - 1) };
+}
+
+// ---- Score-entry tokens (player magic links / group QR / tent URL) ------
+
+/**
+ * Normalise a TeeTimes time cell to "HH:mm". `getValues()` returns time-
+ * formatted cells as Date objects (epoch 1899-12-30); naïve `String()` then
+ * yields "Sat Dec 30 1899 08:07:00 GMT+0130 (...)" which breaks both URL
+ * building and group-token verification (client always sees the gviz CSV
+ * string, e.g. "08:07"). Forcing HH:mm in the script's timezone keeps both
+ * sides aligned.
+ */
+function formatTime_(v) {
+  if (v instanceof Date) {
+    return Utilities.formatDate(
+      v,
+      Session.getScriptTimeZone(),
+      "HH:mm",
+    );
+  }
+  return String(v || "").trim();
+}
+
+/** Random URL-safe token (used for the tent token + the rotating salt). */
+function makeRandomToken_() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // base32-ish, no I/O/0/1
+  let out = "";
+  for (let i = 0; i < 16; i++) {
+    out += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return out;
+}
+
+/** First 12 hex chars of SHA-256(raw). Stable, opaque, URL-safe. */
+function shortDigest_(raw) {
+  const digest = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    raw,
+  );
+  let hex = "";
+  for (let i = 0; i < digest.length; i++) {
+    let b = digest[i];
+    if (b < 0) b += 256;
+    const h = b.toString(16);
+    hex += h.length === 1 ? "0" + h : h;
+  }
+  return hex.substring(0, 12);
+}
+
+/**
+ * 6-character readable token derived from SHA-256(raw). Alphabet excludes
+ * the easily-confused 0/O/1/I — important because the QR sheet shows the
+ * URL as a fallback for typing when QR scanning fails.
+ *
+ * 32^6 ≈ 10^9 combinations: fine for tournament-scale gating, especially
+ * with Apps Script's per-user rate limits.
+ */
+function readableToken_(raw) {
+  // 32 chars, no I/O/0/1.
+  const ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const digest = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    raw,
+  );
+  let out = "";
+  for (let i = 0; i < 6; i++) {
+    let b = digest[i];
+    if (b < 0) b += 256;
+    out += ALPHABET.charAt(b & 31);
+  }
+  return out;
+}
+
+/**
+ * Deterministic group token: SHA-256 of (day, time, SHARED_SECRET). Same group
+ * → same token, every time. Used to print QR codes and verify submissions
+ * later without storing per-group rows.
+ *
+ * Token is the readable 6-char form so the printed URL on the QR sheet can
+ * be hand-typed if a marker's phone can't scan.
+ */
+function groupTokenFor_(day, time) {
+  return readableToken_(String(day) + "-" + String(time) + "|" + SHARED_SECRET);
+}
+
+/**
+ * Per-player token: SHA-256 of (saId, salt, SHARED_SECRET). Salt is stored in
+ * script properties (NOT in the public Players sheet) so the tokens never
+ * leak via gviz. Rotating the salt invalidates every outstanding magic link.
+ *
+ * Returns the readable 6-char form, matching the group token, so the printed
+ * magic-link URL on the QR sheet (or WhatsApp message) can be hand-typed.
+ */
+function entryTokenFor_(saId) {
+  return readableToken_(
+    String(saId) + "|" + getOrCreatePlayerSalt_() + "|" + SHARED_SECRET,
+  );
+}
+
+function getOrCreatePlayerSalt_() {
+  const props = PropertiesService.getScriptProperties();
+  let s = props.getProperty(PLAYER_TOKEN_SALT_PROP);
+  if (!s) {
+    s = makeRandomToken_();
+    props.setProperty(PLAYER_TOKEN_SALT_PROP, s);
+  }
+  return s;
+}
+
+/**
+ * Read (or lazily create) the rotating tent token from script properties.
+ * One token covers the whole field; tent volunteers are trusted, so a single
+ * shared URL is acceptable. Rotated by the rotateTentToken admin action.
+ */
+function getOrCreateTentToken_() {
+  const props = PropertiesService.getScriptProperties();
+  let t = props.getProperty(TENT_TOKEN_PROP);
+  if (!t) {
+    t = makeRandomToken_();
+    props.setProperty(TENT_TOKEN_PROP, t);
+  }
+  return t;
+}
+
+/**
+ * Token-gated single-player score submit (channels #2 and #3).
+ *
+ * Payload: { saId, day, holes, range?, t }
+ *   t must equal either the player's stored entryToken (per-player magic
+ *   link) or the rotating tent token (tent volunteer URL).
+ */
+function submitScore(payload) {
+  if (!payload || !payload.saId || !payload.day || !payload.holes || !payload.t) {
+    throw new Error("submitScore needs { saId, day, holes, t }");
+  }
+  const t = String(payload.t);
+  const tentToken = getOrCreateTentToken_();
+  const playerToken = entryTokenFor_(payload.saId);
+  if (t !== tentToken && t !== playerToken) {
+    throw new Error("unauthorised");
+  }
+  return upsertScore({
+    saId: payload.saId,
+    day: payload.day,
+    holes: payload.holes,
+    range: payload.range,
+  });
+}
+
+/**
+ * Token-gated batched group submit for the marker-wizard (channel #1).
+ *
+ * Payload: {
+ *   group: 'day-time' (e.g. '1-07:30'),
+ *   t: groupToken,
+ *   range: 'front9'|'back9'|'all',
+ *   scores: [{ saId, day, holes }, ...]
+ * }
+ */
+function submitScoreGroup(payload) {
+  if (
+    !payload ||
+    !payload.group ||
+    !payload.t ||
+    !Array.isArray(payload.scores)
+  ) {
+    throw new Error("submitScoreGroup needs { group, t, scores }");
+  }
+  const parts = String(payload.group).split("-");
+  if (parts.length < 2) throw new Error("group must be 'day-time'");
+  const day = Number(parts.shift());
+  const time = parts.join("-");
+  const expected = groupTokenFor_(day, time);
+  if (String(payload.t) !== expected) throw new Error("unauthorised");
+
+  const results = [];
+  for (let i = 0; i < payload.scores.length; i++) {
+    const s = payload.scores[i];
+    if (!s || !s.saId || !s.day || !s.holes) continue;
+    results.push(
+      upsertScore({
+        saId: s.saId,
+        day: s.day,
+        holes: s.holes,
+        range: payload.range,
+      }),
+    );
+  }
+  return { saved: results.length };
+}
+
+// ---- Admin: token generation / URL listing ------------------------------
+
+/**
+ * Rotate the per-player token salt. Every player's magic-link token changes;
+ * any URL printed before this call stops working. Doesn't touch the Players
+ * sheet (tokens are HMAC-derived from salt + saId, not stored).
+ */
+function regenerateEntryTokens() {
+  const props = PropertiesService.getScriptProperties();
+  const fresh = makeRandomToken_();
+  props.setProperty(PLAYER_TOKEN_SALT_PROP, fresh);
+  return { rotated: true };
+}
+
+/** Generate a fresh tent token; old tent URLs stop working. */
+function rotateTentToken() {
+  const props = PropertiesService.getScriptProperties();
+  const fresh = makeRandomToken_();
+  props.setProperty(TENT_TOKEN_PROP, fresh);
+  return { tentToken: fresh };
+}
+
+/**
+ * Return everything the admin Config sub-tab needs to print QR sheets and
+ * copy magic links: per-player URLs, per-group URLs (with computed tokens),
+ * and the current tent token.
+ *
+ * Payload: { baseUrl: 'https://example.com/club-champs/' }
+ *   baseUrl is the deployed site root *with* trailing slash; the function
+ *   appends `#/enter…` etc. (HashRouter).
+ */
+function getEntryUrls(payload) {
+  const baseUrl = String((payload && payload.baseUrl) || "");
+  if (!baseUrl) throw new Error("getEntryUrls needs { baseUrl }");
+
+  // Players: tokens are HMAC-derived from saId + salt + SHARED_SECRET, so we
+  // recompute on demand rather than reading them from the sheet.
+  const pSheet = getSheet(PLAYERS_TAB);
+  const pHeaders = ensureHeaders(pSheet, PLAYERS_HEADERS);
+  const pLast = pSheet.getLastRow();
+  const players = [];
+  if (pLast >= 2) {
+    const fnCol = pHeaders.indexOf("firstName");
+    const lnCol = pHeaders.indexOf("lastName");
+    const idCol = pHeaders.indexOf("saId");
+    const rows = pSheet.getRange(2, 1, pLast - 1, pHeaders.length).getValues();
+    for (let i = 0; i < rows.length; i++) {
+      const id = String(rows[i][idCol]).trim();
+      if (!id) continue;
+      const name = (
+        String(rows[i][fnCol] || "").trim() +
+        " " +
+        String(rows[i][lnCol] || "").trim()
+      ).trim();
+      // Compact URL form: `#/p/{saId}-{TOKEN}` — single path segment,
+      // no query string. Mirrors the group URL pattern (`#/g/D1-0800-XKB97R`)
+      // so the printed magic-link URL can be hand-typed if needed.
+      players.push({
+        saId: id,
+        name: name,
+        url: baseUrl + "#/p/" + id + "-" + entryTokenFor_(id),
+      });
+    }
+  }
+
+  // Groups (one entry per unique day+time in TeeTimes).
+  const ttSheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName(
+    TEE_TIMES_TAB,
+  );
+  const groups = [];
+  if (ttSheet) {
+    const ttLast = ttSheet.getLastRow();
+    if (ttLast >= 2) {
+      const ttRows = ttSheet
+        .getRange(2, 1, ttLast - 1, TEE_TIMES_HEADERS.length)
+        .getValues();
+      const byKey = {};
+      for (let i = 0; i < ttRows.length; i++) {
+        const day = Number(ttRows[i][0]);
+        const time = formatTime_(ttRows[i][1]);
+        const name = String(ttRows[i][3] || "").trim();
+        if (!day || !time) continue;
+        const key = day + "-" + time;
+        if (!byKey[key]) {
+          // Compact URL form: `#/g/D{day}-{HHMM}-{TOKEN}` — single path
+          // segment, no query string, no encoded colons. Reads as
+          // "Day 1, 08:00, code XKB97R" so a marker with a malfunctioning
+          // QR scanner can hand-type it from the printed sheet.
+          const timeNoColon = time.replace(":", "");
+          byKey[key] = {
+            day: day,
+            time: time,
+            names: [],
+            url:
+              baseUrl +
+              "#/g/D" +
+              day +
+              "-" +
+              timeNoColon +
+              "-" +
+              groupTokenFor_(day, time),
+          };
+        }
+        byKey[key].names.push(name);
+      }
+      // Stable order: day, then time.
+      const keys = Object.keys(byKey).sort();
+      for (let i = 0; i < keys.length; i++) groups.push(byKey[keys[i]]);
+    }
+  }
+
+  // Tent URL.
+  const tentToken = getOrCreateTentToken_();
+  const tentUrl = baseUrl + "#/enter-all?t=" + tentToken;
+
+  return { players: players, groups: groups, tentUrl: tentUrl };
 }

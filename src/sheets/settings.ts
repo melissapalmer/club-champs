@@ -14,6 +14,47 @@ const STORAGE_KEY = 'rd-cc-sheets';
  */
 export const DEFAULT_SHEET_ID = '1yBRZBkMm4QW86uS968aZDGFVEcDx4wgdusKZ6kye-5A';
 
+/**
+ * Production deployment URL with trailing slash. Used when admin is on
+ * localhost AND not running `npm run dev` (i.e. a real prod-build hosted
+ * locally). Phones can't reach localhost so the QR codes have to encode
+ * something they can actually open.
+ */
+export const DEFAULT_SITE_BASE_URL = 'https://melissapalmer.github.io/club-champs/';
+
+/**
+ * LAN URL used during `npm run dev` when admin's browser is parked on
+ * `localhost:5173` but their phone needs a reachable host. Set to the
+ * laptop's LAN IP + Vite port. Only applied when `import.meta.env.DEV`
+ * is true, so it never leaks into a production build.
+ *
+ * Update when the laptop's IP changes (or just navigate to the IP in
+ * the browser instead — `siteBaseUrl()` uses the current origin when it's
+ * not localhost).
+ */
+export const DEV_BASE_URL_OVERRIDE = 'http://10.0.0.7:5173/';
+
+/**
+ * Production Apps Script /exec URL baked into the build so the token-gated
+ * entry channels (per-player magic link, per-group QR, tent URL) work on
+ * any visitor's browser without per-device setup.
+ *
+ * Why baking is OK: the new entry channels gate each write on a per-player
+ * token, per-group token, or tent token verified server-side — without one
+ * of those, knowing the scriptUrl alone gets you nothing. Admin actions
+ * (upsertPlayer, saveCourse, etc.) still require the SHARED_SECRET that
+ * lives only in admin localStorage.
+ *
+ * IMPORTANT: this URL is stable only if you redeploy via
+ *   Apps Script → Manage deployments → ✏️ edit existing → Version: New version
+ * Creating a *new* deployment instead generates a fresh /exec URL and the
+ * baked default goes stale (you'd need to update this constant + rebuild).
+ *
+ * Leave empty in dev / forks to disable the public entry flow.
+ */
+export const DEFAULT_SCRIPT_URL =
+  'https://script.google.com/macros/s/AKfycbykGOrLGoxSzZPg4LNJN6w07iisSzcb3wXYwtz7OD77BPituZDseggFQJ70Vbjr9txWWw/exec';
+
 export type SheetsSettings = {
   /** Google Sheet ID (the long string from the sheet URL). */
   sheetId: string;
@@ -60,6 +101,31 @@ export function loadSheetIdForReads(): string {
     // fall through to the default
   }
   return DEFAULT_SHEET_ID;
+}
+
+/**
+ * Loose loader for token-gated SUBMIT flows (magic link / group QR / tent URL).
+ * Returns the scriptUrl any visitor can use to call `submitScore` /
+ * `submitScoreGroup`, regardless of whether they're configured as admin.
+ *
+ * Order:
+ *   1. localStorage.scriptUrl (admin override, e.g. for testing a
+ *      different deployment)
+ *   2. DEFAULT_SCRIPT_URL baked into the build
+ * Returns "" when neither is set — the entry pages show a not-configured
+ * message in that case.
+ */
+export function loadSubmitScriptUrl(): string {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<SheetsSettings>;
+      if (parsed.scriptUrl) return parsed.scriptUrl;
+    }
+  } catch {
+    // fall through to the default
+  }
+  return DEFAULT_SCRIPT_URL;
 }
 
 export function saveSheetsSettings(s: SheetsSettings): void {

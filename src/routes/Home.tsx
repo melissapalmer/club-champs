@@ -18,8 +18,7 @@ export function Home({ data }: { data: AppData }) {
     course.teeTimes?.enabled && course.teeTimes.day1Start && course.teeTimes.day2Start
       ? `Sat ${course.teeTimes.day1Start} · Sun ${course.teeTimes.day2Start}`
       : null;
-  const matchPlayShown =
-    course.divisions.some((d) => d.matchPlay?.enabled) || data.matches.length > 0;
+  const matchPlayShown = course.divisions.some((d) => d.matchPlay?.enabled);
 
   const cards: Card[] = [
     teeTimesShown && {
