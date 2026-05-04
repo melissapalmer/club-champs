@@ -23,12 +23,10 @@ const NAV: NavItem[] = [
     to: '/tee-times',
     label: 'Tee Times',
     end: false,
-    // Show the tab if the admin enabled it OR if any tee times have actually
-    // been generated — that way an admin who clicked Generate but forgot to
-    // save the Course flag still gets the menu, and so does any browser that
-    // sees data in the Sheet without the flag flipped (legacy / mid-flight).
-    visibleWhen: ({ course, teeTimes }) =>
-      !!course?.teeTimes?.enabled || teeTimes.length > 0,
+    // Always visible once course data has loaded. The page itself shows a
+    // "coming soon" message when no rows exist yet, so users always have
+    // somewhere to go to check whether the draw is up.
+    visibleWhen: ({ course }) => course != null,
   },
   { to: '/scores', label: 'Scores', end: false },
   { to: '/stats', label: 'Stats', end: false },

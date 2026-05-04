@@ -37,13 +37,17 @@ export function TeeTimes({ data }: { data: AppData }) {
     return map;
   }, [players, scores, course]);
 
-  if (!course.teeTimes?.enabled && teeTimes.length === 0) {
+  // No tee times generated yet — the admin either hasn't enabled the
+  // feature or hasn't pressed Generate. Friendly "coming soon" beats the
+  // page silently disappearing or rendering empty tables.
+  if (teeTimes.length === 0) {
     return (
       <section>
         <h1 className="text-2xl text-rd-navy mb-2">Tee Times</h1>
         <p className="text-sm text-rd-ink/70">
-          Tee times are not enabled for this event. Admin can enable them in
-          Config.
+          Tee times haven&apos;t been published yet — check back closer to
+          the event. The starter will share the final draw a day or two
+          before the round.
         </p>
       </section>
     );
