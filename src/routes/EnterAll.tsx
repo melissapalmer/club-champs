@@ -101,7 +101,17 @@ function MiniDivisionTable({
     .sort((a, b) => {
       const ap = a.rank.pos;
       const bp = b.rank.pos;
-      if (ap == null && bp == null) return 0;
+      // No scores yet → alphabetical by surname for a predictable pre-
+      // tournament order. Matches the public Scores page's behaviour.
+      if (ap == null && bp == null) {
+        const ln = (a.line.player.lastName || '').localeCompare(
+          b.line.player.lastName || ''
+        );
+        if (ln !== 0) return ln;
+        return (a.line.player.firstName || '').localeCompare(
+          b.line.player.firstName || ''
+        );
+      }
       if (ap == null) return 1;
       if (bp == null) return -1;
       return ap - bp;

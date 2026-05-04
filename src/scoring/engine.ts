@@ -170,13 +170,22 @@ export function stablefordHoles(
   });
 }
 
-/** Sum of `stablefordHoles`. Null only if PH is missing. Partial-day arrays are fine — unentered holes contribute 0 (so live mid-round totals still display). */
+/**
+ * Sum of `stablefordHoles`. Null when PH is missing OR when no holes have
+ * been entered at all — so the leaderboard treats an empty round as "no
+ * score" (consistent with medal's `dayTotals().gross`) rather than a real
+ * zero-point round that would tie everyone at T1.
+ *
+ * Partial-day arrays still produce a number — unentered holes contribute 0
+ * — so the live mid-round totals on the wizard still display.
+ */
 export function stablefordTotal(
   dayHoles: (number | null)[],
   ph: number | null,
   course: Course
 ): number | null {
   if (ph == null) return null;
+  if (dayHoles.every((h) => h == null)) return null;
   return stablefordHoles(dayHoles, ph, course).reduce<number>(
     (a, b) => a + (b ?? 0),
     0

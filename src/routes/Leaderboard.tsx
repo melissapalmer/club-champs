@@ -18,6 +18,13 @@ import {
 } from '../scoring/engine';
 import type { Course, DivisionFormat, Hole, Player } from '../types';
 
+/** Stable, locale-aware compare on (lastName, firstName). */
+function surnameCompare(a: Player, b: Player): number {
+  const ln = (a.lastName || '').localeCompare(b.lastName || '');
+  if (ln !== 0) return ln;
+  return (a.firstName || '').localeCompare(b.firstName || '');
+}
+
 function PencilIcon() {
   return (
     <svg
@@ -421,7 +428,12 @@ export function Leaderboard({ data }: { data: AppData }) {
     .sort((a, b) => {
       const ap = a.rank.pos;
       const bp = b.rank.pos;
-      if (ap == null && bp == null) return 0;
+      // No scores yet → fall back to alphabetical by surname so the pre-
+      // tournament order is predictable instead of "whatever order the
+      // Players sheet was in".
+      if (ap == null && bp == null) {
+        return surnameCompare(a.line.player, b.line.player);
+      }
       if (ap == null) return 1;
       if (bp == null) return -1;
       if (ap !== bp) return ap - bp;
