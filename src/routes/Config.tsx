@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useIsAdmin } from '../admin';
+import {
+  getEntryUrls,
+  regenerateEntryTokens,
+  rotateTentToken,
+  siteBaseUrl,
+  type EntryUrls,
+} from '../auth/entryTokens';
 import { SheetSettingsDialog } from '../components/SheetSettingsDialog';
 import { Tabs, type TabItem } from '../components/Tabs';
 import type { AppData } from '../data';
@@ -843,6 +850,207 @@ function PrizesEditor({
   );
 }
 
+function ScoreEntryEditor({ cfg }: { cfg: SheetsSettings | null }) {
+  const [status, setStatus] = useState<{
+    kind: 'idle' | 'busy' | 'ok' | 'err';
+    msg?: string;
+  }>({ kind: 'idle' });
+  const [urls, setUrls] = useState<EntryUrls | null>(null);
+
+  const ensureCfg = (): SheetsSettings | null => {
+    if (cfg) return cfg;
+    setStatus({
+      kind: 'err',
+      msg: 'Configure Apps Script URL + secret first (top-right).',
+    });
+    return null;
+  };
+
+  const refreshUrls = async (c: SheetsSettings): Promise<EntryUrls | null> => {
+    setStatus({ kind: 'busy', msg: 'Fetching links…' });
+    try {
+      const data = await getEntryUrls(c, siteBaseUrl());
+      setUrls(data);
+      setStatus({ kind: 'idle' });
+      return data;
+    } catch (e) {
+      setStatus({ kind: 'err', msg: e instanceof Error ? e.message : String(e) });
+      return null;
+    }
+  };
+
+  const handleRegenerate = async () => {
+    if (
+      !window.confirm(
+        'Regenerate per-player tokens?\n\nAll printed QR sheets and any per-player magic links you’ve already shared will stop working. You will need to print and re-distribute fresh links.'
+      )
+    )
+      return;
+    const c = ensureCfg();
+    if (!c) return;
+    setStatus({ kind: 'busy', msg: 'Regenerating…' });
+    try {
+      await regenerateEntryTokens(c);
+      await refreshUrls(c);
+      setStatus({ kind: 'ok', msg: 'Per-player tokens regenerated.' });
+    } catch (e) {
+      setStatus({ kind: 'err', msg: e instanceof Error ? e.message : String(e) });
+    }
+  };
+
+  const handleRotateTent = async () => {
+    if (
+      !window.confirm(
+        'Rotate the tent token?\n\nThe current tent URL will stop working. Anyone using it must be given the new URL.'
+      )
+    )
+      return;
+    const c = ensureCfg();
+    if (!c) return;
+    setStatus({ kind: 'busy', msg: 'Rotating tent token…' });
+    try {
+      await rotateTentToken(c);
+      await refreshUrls(c);
+      setStatus({ kind: 'ok', msg: 'Tent token rotated.' });
+    } catch (e) {
+      setStatus({ kind: 'err', msg: e instanceof Error ? e.message : String(e) });
+    }
+  };
+
+  const handleLoadUrls = async () => {
+    const c = ensureCfg();
+    if (!c) return;
+    await refreshUrls(c);
+  };
+
+  const handlePrintQR = () => {
+    // Open the standalone /qr-sheet route in a new tab. That route fetches
+    // its own URLs from the same Apps Script, using the admin cfg from
+    // localStorage (shared across tabs of the same origin).
+    window.open('#/qr-sheet', '_blank');
+  };
+
+  const handleCopyPlayerLinks = async () => {
+    const c = ensureCfg();
+    if (!c) return;
+    const data = urls ?? (await refreshUrls(c));
+    if (!data) return;
+    const tsv = data.players
+      .map((p) => `${p.name}\t${p.url}`)
+      .join('\n');
+    try {
+      await navigator.clipboard.writeText(tsv);
+      setStatus({
+        kind: 'ok',
+        msg: `Copied ${data.players.length} player links to clipboard.`,
+      });
+    } catch {
+      setStatus({ kind: 'err', msg: 'Clipboard write failed — copy manually below.' });
+    }
+  };
+
+  return (
+    <div className="rd-card p-4 space-y-4">
+      <div>
+        <h2 className="text-lg text-rd-navy font-serif mb-1">Score Entry</h2>
+        <p className="text-xs text-rd-ink/60">
+          Three ways players or scorers can enter scores without admin access:
+          per-group QR (marker enters all 4), per-player magic link (each
+          player enters their own), tent URL (a single volunteer enters
+          everyone). Regenerate tokens before each event so old links from
+          last time can’t be reused.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <button
+          className="px-3 py-1.5 text-sm rounded bg-rd-navy text-white"
+          onClick={() => void handleRegenerate()}
+          disabled={status.kind === 'busy'}
+        >
+          Regenerate per-player tokens
+        </button>
+        <button
+          className="px-3 py-1.5 text-sm rounded bg-rd-navy text-white"
+          onClick={() => void handleRotateTent()}
+          disabled={status.kind === 'busy'}
+        >
+          Rotate tent token
+        </button>
+        <button
+          className="px-3 py-1.5 text-sm rounded border border-rd-navy/40 text-rd-navy"
+          onClick={() => void handleLoadUrls()}
+          disabled={status.kind === 'busy'}
+        >
+          Refresh links
+        </button>
+        <button
+          className="px-3 py-1.5 text-sm rounded border border-rd-navy/40 text-rd-navy"
+          onClick={() => void handlePrintQR()}
+          disabled={status.kind === 'busy'}
+        >
+          Print QR sheet
+        </button>
+        <button
+          className="px-3 py-1.5 text-sm rounded border border-rd-navy/40 text-rd-navy"
+          onClick={() => void handleCopyPlayerLinks()}
+          disabled={status.kind === 'busy'}
+        >
+          Copy individual links
+        </button>
+      </div>
+
+      {status.msg && (
+        <p
+          className={`text-sm ${
+            status.kind === 'err'
+              ? 'text-red-700'
+              : status.kind === 'ok'
+                ? 'text-green-700'
+                : 'text-rd-ink/70'
+          }`}
+        >
+          {status.msg}
+        </p>
+      )}
+
+      {urls && (
+        <>
+          <div>
+            <h3 className="text-sm font-semibold text-rd-navy mb-1">Tent URL</h3>
+            <p className="text-xs text-rd-ink/60 mb-1">
+              Share with the volunteer at the scoring tent — one URL covers
+              every player. Rotate to invalidate.
+            </p>
+            <code className="block text-xs bg-rd-cream p-2 rounded break-all">
+              {urls.tentUrl}
+            </code>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-rd-navy mb-1">
+              Group QR codes ({urls.groups.length})
+            </h3>
+            <p className="text-xs text-rd-ink/60">
+              Click <em>Print QR sheet</em> above to print one card per tee
+              time. Cut and tape next to the starter’s draw sheet.
+            </p>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-rd-navy mb-1">
+              Player magic links ({urls.players.length})
+            </h3>
+            <p className="text-xs text-rd-ink/60">
+              Use <em>Copy individual links</em> to grab a name+URL TSV for
+              WhatsApp / email merge.
+            </p>
+          </div>
+        </>
+      )}
+
+    </div>
+  );
+}
+
 function TextField({
   label,
   value,
@@ -894,6 +1102,7 @@ export function Config({ data }: { data: AppData }) {
     { id: 'divisions', label: 'Divisions' },
     { id: 'rules', label: 'Rules' },
     { id: 'tee-times', label: 'Tee Times' },
+    { id: 'score-entry', label: 'Score Entry' },
     { id: 'match-play', label: 'Match Play' },
     { id: 'branding', label: 'Branding' },
   ];
@@ -1420,6 +1629,8 @@ export function Config({ data }: { data: AppData }) {
           hasDay1Scores={hasDay1Scores}
         />
       )}
+
+      {activeTab === 'score-entry' && <ScoreEntryEditor cfg={cfg} />}
 
       {activeTab === 'match-play' && (
         <div className="rd-card p-4">

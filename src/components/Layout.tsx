@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useIsAdmin } from '../admin';
 import { resolveAssetUrl } from '../theme';
 import type { Course, Match, TeeTime } from '../types';
@@ -37,8 +37,11 @@ const NAV: NavItem[] = [
     to: '/match-play',
     label: 'Match Play',
     end: false,
-    visibleWhen: ({ course, matches }) =>
-      !!course?.divisions?.some((d) => d.matchPlay?.enabled) || matches.length > 0,
+    // Strict: hide unless at least one division has Match Play turned on.
+    // (Stale persisted matches alone don't surface the tab — admin can
+    // re-enable a division if they want the bracket back in the nav.)
+    visibleWhen: ({ course }) =>
+      !!course?.divisions?.some((d) => d.matchPlay?.enabled),
   },
   { to: '/manage-players', label: 'Manage Players', end: false, adminOnly: true },
   { to: '/config', label: 'Config', end: false, adminOnly: true },
@@ -66,6 +69,17 @@ export function Layout({
       (!item.adminOnly || admin) &&
       (item.visibleWhen == null || item.visibleWhen(ctx))
   );
+  const { pathname } = useLocation();
+  // Hide the site nav on the token-gated entry routes — these are reached
+  // only via QR / magic link by players or markers, who shouldn't see the
+  // spectator nav. Admin /enter (with the access key set) still gets the
+  // nav for parity with the dashboard flow.
+  const hideNav =
+    pathname.startsWith('/enter-group') ||
+    pathname.startsWith('/enter-all') ||
+    pathname.startsWith('/g/') ||
+    pathname.startsWith('/p/') ||
+    (pathname.startsWith('/enter') && !admin);
   return (
     <div className="min-h-screen flex flex-col">
       <header className="bg-rd-navy text-white print-color-exact">
@@ -87,26 +101,28 @@ export function Layout({
             </div>
           </div>
         </div>
-        <nav className="bg-rd-navy-deep print:hidden">
-          <div className="max-w-7xl mx-auto px-2 flex flex-wrap">
-            {items.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) =>
-                  `px-4 py-3 text-sm font-medium border-b-2 ${
-                    isActive
-                      ? 'border-rd-gold text-white'
-                      : 'border-transparent text-white/70 hover:text-white'
-                  }`
-                }
-              >
-                {item.label}
-              </NavLink>
-            ))}
-          </div>
-        </nav>
+        {!hideNav && (
+          <nav className="bg-rd-navy-deep print:hidden">
+            <div className="max-w-7xl mx-auto px-2 flex flex-wrap">
+              {items.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end}
+                  className={({ isActive }) =>
+                    `px-4 py-3 text-sm font-medium border-b-2 ${
+                      isActive
+                        ? 'border-rd-gold text-white'
+                        : 'border-transparent text-white/70 hover:text-white'
+                    }`
+                  }
+                >
+                  {item.label}
+                </NavLink>
+              ))}
+            </div>
+          </nav>
+        )}
       </header>
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
         <Outlet />

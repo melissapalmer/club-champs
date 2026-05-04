@@ -47,7 +47,12 @@ export type ActionName =
   | 'saveCourse'
   | 'saveTeeTimes'
   | 'saveMatches'
-  | 'clearMatches';
+  | 'clearMatches'
+  | 'submitScore'
+  | 'submitScoreGroup'
+  | 'regenerateEntryTokens'
+  | 'rotateTentToken'
+  | 'getEntryUrls';
 
 export type Action = {
   action: ActionName;
