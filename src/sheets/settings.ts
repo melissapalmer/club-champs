@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'rd-cc-sheets';
+const STORAGE_KEY = "rd-cc-sheets";
 
 /**
  * Production Sheet ID baked into the build so spectators see live scores
@@ -12,7 +12,7 @@ const STORAGE_KEY = 'rd-cc-sheets';
  * To point a different deployment at a different Sheet, change this constant.
  * Per-browser overrides via the Settings dialog still take precedence.
  */
-export const DEFAULT_SHEET_ID = '1yBRZBkMm4QW86uS968aZDGFVEcDx4wgdusKZ6kye-5A';
+export const DEFAULT_SHEET_ID = "1yBRZBkMm4QW86uS968aZDGFVEcDx4wgdusKZ6kye-5A";
 
 /**
  * Production deployment URL with trailing slash. Used when admin is on
@@ -20,7 +20,8 @@ export const DEFAULT_SHEET_ID = '1yBRZBkMm4QW86uS968aZDGFVEcDx4wgdusKZ6kye-5A';
  * locally). Phones can't reach localhost so the QR codes have to encode
  * something they can actually open.
  */
-export const DEFAULT_SITE_BASE_URL = 'https://melissapalmer.github.io/club-champs/';
+export const DEFAULT_SITE_BASE_URL =
+  "https://melissapalmer.github.io/club-champs/";
 
 /**
  * LAN URL used during `npm run dev` when admin's browser is parked on
@@ -32,7 +33,7 @@ export const DEFAULT_SITE_BASE_URL = 'https://melissapalmer.github.io/club-champ
  * the browser instead — `siteBaseUrl()` uses the current origin when it's
  * not localhost).
  */
-export const DEV_BASE_URL_OVERRIDE = 'http://10.0.0.7:5173/';
+export const DEV_BASE_URL_OVERRIDE = "http://10.0.0.7:5173/";
 
 /**
  * Production Apps Script /exec URL baked into the build so the token-gated
@@ -53,7 +54,7 @@ export const DEV_BASE_URL_OVERRIDE = 'http://10.0.0.7:5173/';
  * Leave empty in dev / forks to disable the public entry flow.
  */
 export const DEFAULT_SCRIPT_URL =
-  'https://script.google.com/macros/s/AKfycbykGOrLGoxSzZPg4LNJN6w07iisSzcb3wXYwtz7OD77BPituZDseggFQJ70Vbjr9txWWw/exec';
+  "https://script.google.com/macros/s/AKfycbwj1QOM_g5JO6oz8GvMdkIzJP5iLNqsPHVf0KGSEzeGWO4fQNDny1heAqF0d9R0H7yEmg/exec";
 
 export type SheetsSettings = {
   /** Google Sheet ID (the long string from the sheet URL). */
