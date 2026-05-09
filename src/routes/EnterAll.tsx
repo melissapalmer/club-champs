@@ -116,7 +116,6 @@ function MiniDivisionTable({
       if (bp == null) return -1;
       return ap - bp;
     });
-  const totalLabel = isStableford ? 'Pts' : 'Net';
 
   return (
     <div className="rd-card overflow-hidden">
@@ -127,25 +126,17 @@ function MiniDivisionTable({
         <table className="w-full text-sm">
           <thead className="text-xs text-rd-ink/60 bg-rd-cream/50">
             <tr>
-              <th rowSpan={2} className="text-left px-2 py-1 font-normal w-10 align-bottom">Pos</th>
-              <th rowSpan={2} className="text-left px-2 py-1 font-normal align-bottom">Player</th>
-              <th colSpan={2} className="text-center px-2 py-1 font-normal border-b border-rd-cream">Sat</th>
-              <th colSpan={2} className="text-center px-2 py-1 font-normal border-b border-rd-cream">Sun</th>
-              <th colSpan={2} className="text-center px-2 py-1 font-normal border-b border-rd-cream">Total</th>
-            </tr>
-            <tr>
-              <th className="text-right px-2 py-1 font-normal text-[10px]">Gross</th>
-              <th className="text-right px-2 py-1 font-normal text-[10px]">{totalLabel}</th>
-              <th className="text-right px-2 py-1 font-normal text-[10px]">Gross</th>
-              <th className="text-right px-2 py-1 font-normal text-[10px]">{totalLabel}</th>
-              <th className="text-right px-2 py-1 font-normal text-[10px]">Gross</th>
-              <th className="text-right px-2 py-1 font-normal text-[10px]">{totalLabel}</th>
+              <th className="text-left px-2 py-1 font-normal w-10">Pos</th>
+              <th className="text-left px-2 py-1 font-normal">Player</th>
+              <th className="text-right px-2 py-1 font-normal">Sat</th>
+              <th className="text-right px-2 py-1 font-normal">Sun</th>
+              <th className="text-right px-2 py-1 font-normal">Total</th>
             </tr>
           </thead>
           <tbody>
             {sorted.length === 0 ? (
               <tr>
-                <td colSpan={8} className="text-center py-4 text-rd-ink/50 text-xs">
+                <td colSpan={5} className="text-center py-4 text-rd-ink/50 text-xs">
                   No players in this division.
                 </td>
               </tr>
@@ -156,24 +147,21 @@ function MiniDivisionTable({
                     {rank.pos == null ? '—' : `${rank.tied ? 'T' : ''}${rank.pos}`}
                   </td>
                   <td className="px-2 py-1 truncate">{fullName(line.player)}</td>
-                  <td className="px-2 py-1 text-right tabular-nums text-rd-ink/70">
-                    {num(line.sat.gross)}
-                  </td>
-                  <td className="px-2 py-1 text-right tabular-nums">
-                    {num(isStableford ? line.sat.stableford : line.sat.net)}
-                  </td>
-                  <td className="px-2 py-1 text-right tabular-nums text-rd-ink/70">
-                    {num(line.sun.gross)}
-                  </td>
-                  <td className="px-2 py-1 text-right tabular-nums">
-                    {num(isStableford ? line.sun.stableford : line.sun.net)}
-                  </td>
-                  <td className="px-2 py-1 text-right tabular-nums text-rd-ink/70">
-                    {num(line.overall.gross)}
-                  </td>
-                  <td className="px-2 py-1 text-right tabular-nums font-semibold text-rd-navy">
-                    {num(isStableford ? line.overall.stableford : line.overall.net)}
-                  </td>
+                  <DayCell
+                    gross={line.sat.gross}
+                    rankValue={isStableford ? line.sat.stableford : line.sat.net}
+                  />
+                  <DayCell
+                    gross={line.sun.gross}
+                    rankValue={isStableford ? line.sun.stableford : line.sun.net}
+                  />
+                  <DayCell
+                    gross={line.overall.gross}
+                    rankValue={
+                      isStableford ? line.overall.stableford : line.overall.net
+                    }
+                    emphasised
+                  />
                 </tr>
               ))
             )}
@@ -181,5 +169,28 @@ function MiniDivisionTable({
         </table>
       </div>
     </div>
+  );
+}
+
+function DayCell({
+  gross,
+  rankValue,
+  emphasised = false,
+}: {
+  gross: number | null;
+  rankValue: number | null;
+  emphasised?: boolean;
+}) {
+  return (
+    <td className="px-2 py-1 text-right tabular-nums text-xs leading-tight">
+      <div className="text-rd-ink/55">{num(gross) ?? '—'}</div>
+      <div
+        className={
+          emphasised ? 'font-semibold text-rd-navy' : 'font-medium text-rd-ink'
+        }
+      >
+        {num(rankValue) ?? '—'}
+      </div>
+    </td>
   );
 }
