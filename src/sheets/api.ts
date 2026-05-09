@@ -22,11 +22,17 @@ export type SheetsConfig = {
  * Forcing headers=1 makes row 1 the header and row 2+ the data.
  */
 export function csvUrl(sheetId: string, tab: string): string {
+  // `&_=Date.now()` busts gviz's edge cache. Without it, reads can return a
+  // stale CSV for several seconds after a write — e.g. Day 2 scores saved
+  // via /enter-all wouldn't show on the mini leaderboards until the next
+  // polling cycle (15 s) or a hard refresh.
   return (
     'https://docs.google.com/spreadsheets/d/' +
     encodeURIComponent(sheetId) +
     '/gviz/tq?tqx=out:csv&headers=1&sheet=' +
-    encodeURIComponent(tab)
+    encodeURIComponent(tab) +
+    '&_=' +
+    Date.now()
   );
 }
 

@@ -19,6 +19,13 @@ export type AppData = {
   lastChanged: Date;
   /** Force a fresh fetch (used after writes). */
   reload: () => Promise<void>;
+  /**
+   * Optimistically merge a freshly-saved score into local state so the
+   * leaderboards update on the same tick as the save, without waiting for
+   * the gviz read to return fresh CSV. The next `reload()` call replaces
+   * this with the canonical server state.
+   */
+  applyScore: (score: DayScore) => void;
 };
 
 async function fetchAll(sheetId: string): Promise<{
@@ -92,12 +99,33 @@ export function useAppData(): { data: AppData | null; error: string | null } {
           ...next,
           lastChanged,
           reload: prev?.reload ?? reload,
+          applyScore: prev?.applyScore ?? (() => {}),
         }));
       }
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
+  }, []);
+
+  // Optimistic local merge so the UI reflects a save before the server-side
+  // CSV catches up. Replaces the matching (saId, day) row or appends.
+  const applyScore = useCallback((score: DayScore) => {
+    setData((prev) => {
+      if (!prev) return prev;
+      const idx = prev.scores.findIndex(
+        (s) => s.saId === score.saId && s.day === score.day
+      );
+      const nextScores =
+        idx >= 0
+          ? prev.scores.map((s, i) => (i === idx ? score : s))
+          : [...prev.scores, score];
+      // Reset the fingerprint so the next reload's diff against the server
+      // is treated as a real change (otherwise our local merge could collide
+      // with a stale server fingerprint and skip the setData call).
+      lastPrintRef.current = '';
+      return { ...prev, scores: nextScores, lastChanged: new Date() };
+    });
   }, []);
 
   // Poll every POLL_MS plus refetch on focus.
@@ -116,10 +144,10 @@ export function useAppData(): { data: AppData | null; error: string | null } {
     };
   }, [reload]);
 
-  // Make sure data.reload always points at the latest closure.
+  // Make sure data.reload / applyScore always point at the latest closure.
   useEffect(() => {
-    setData((prev) => (prev ? { ...prev, reload } : prev));
-  }, [reload]);
+    setData((prev) => (prev ? { ...prev, reload, applyScore } : prev));
+  }, [reload, applyScore]);
 
   return { data, error };
 }

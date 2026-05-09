@@ -203,7 +203,19 @@ export function ScoreEntryPanel({
 
   const saveRange = async (range: ScoreRange) => {
     if (!player) return;
-    const updated: DayScore = { saId: player.saId, day, holes };
+    // For partial-range saves, merge the local input with whatever's already
+    // on file for the OTHER 9 holes — otherwise the optimistic local update
+    // would wipe the unaffected nine until the server reload catches up.
+    const existing = scores.find(
+      (s) => s.saId === player.saId && s.day === day
+    )?.holes ?? Array(18).fill(null);
+    const merged: (number | null)[] =
+      range === 'front9'
+        ? [...holes.slice(0, 9), ...existing.slice(9)]
+        : range === 'back9'
+          ? [...existing.slice(0, 9), ...holes.slice(9)]
+          : holes;
+    const updated: DayScore = { saId: player.saId, day, holes: merged };
     setStatus({ kind: 'busy', msg: 'Saving…' });
     try {
       if (submitToken) {
@@ -227,6 +239,9 @@ export function ScoreEntryPanel({
         }
         await upsertScore(cfg, updated, range);
       }
+      // Optimistic local merge so the leaderboards reflect the save instantly.
+      // The reload() below resyncs with the server once gviz catches up.
+      data.applyScore(updated);
       const label = range === 'front9' ? 'Front 9 saved.' : range === 'back9' ? 'Back 9 saved.' : 'Saved.';
       setStatus({
         kind: 'ok',
