@@ -153,6 +153,32 @@ export function ScoreEntryPanel({
     : null;
   const total = front9Sum != null && back9Sum != null ? front9Sum + back9Sum : null;
   const net = total != null && ph != null ? total - ph : null;
+
+  // Round summary for both days: active day comes from live local state, the
+  // other day from the saved scores. Lets the player see how their other
+  // round went while they're still typing this one.
+  const otherDayHoles = useMemo(() => {
+    if (!player) return null;
+    const otherDay: 1 | 2 = day === 1 ? 2 : 1;
+    return scores.find((s) => s.saId === player.saId && s.day === otherDay)?.holes ?? null;
+  }, [player, scores, day]);
+  const summarise = (raw: (number | null)[] | null) => {
+    if (!raw) return { gross: null, net: null, pts: null, complete: false };
+    const filled = raw.filter((h) => h != null) as number[];
+    if (filled.length === 0) return { gross: null, net: null, pts: null, complete: false };
+    const complete = filled.length === 18;
+    const gross = filled.reduce((a, b) => a + b, 0);
+    return {
+      gross,
+      net: complete && ph != null ? gross - ph : null,
+      pts: stablefordTotal(raw, ph, data.course),
+      complete,
+    };
+  };
+  const activeSummary = summarise(holes);
+  const otherSummary = summarise(otherDayHoles);
+  const day1Summary = day === 1 ? activeSummary : otherSummary;
+  const day2Summary = day === 2 ? activeSummary : otherSummary;
   // Stableford running totals — null until PH is known. Partial rounds count
   // unentered holes as 0 (intentional: gives organisers a live read-out).
   const stbHoles = isStableford ? stablefordHoles(holes, ph, data.course) : null;
@@ -277,6 +303,12 @@ export function ScoreEntryPanel({
         <p className="text-sm text-rd-ink/60">Pick a player to enter scores.</p>
       ) : (
         <>
+          <RoundSummary
+            day1={day1Summary}
+            day2={day2Summary}
+            activeDay={day}
+            isStableford={isStableford}
+          />
           <div className="rd-card p-4 mb-4">
             <div className="grid grid-cols-9 gap-2 mb-3">
               {HOLE_NUMS.slice(0, 9).map((h) => {
@@ -414,6 +446,73 @@ export function ScoreEntryPanel({
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+type RoundSummaryEntry = {
+  gross: number | null;
+  net: number | null;
+  pts: number | null;
+  complete: boolean;
+};
+
+function RoundSummary({
+  day1,
+  day2,
+  activeDay,
+  isStableford,
+}: {
+  day1: RoundSummaryEntry;
+  day2: RoundSummaryEntry;
+  activeDay: 1 | 2;
+  isStableford: boolean;
+}) {
+  const Cell = ({
+    label,
+    entry,
+    active,
+  }: {
+    label: string;
+    entry: RoundSummaryEntry;
+    active: boolean;
+  }) => (
+    <div className="flex-1 min-w-0">
+      <div className="text-xs uppercase tracking-wide text-rd-ink/60">
+        {label}
+        {active && (
+          <span className="ml-1 text-rd-gold font-semibold">· entering</span>
+        )}
+      </div>
+      <div className="tabular-nums text-sm">
+        Gross{' '}
+        <span className="font-semibold text-rd-navy">
+          {entry.gross ?? '—'}
+        </span>
+        {' · '}
+        {isStableford ? (
+          <>
+            Pts{' '}
+            <span className="font-semibold text-rd-navy">
+              {entry.pts ?? '—'}
+            </span>
+          </>
+        ) : (
+          <>
+            Net{' '}
+            <span className="font-semibold text-rd-navy">
+              {entry.net ?? (entry.gross != null ? '…' : '—')}
+            </span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="rd-card p-3 mb-3 flex flex-wrap gap-x-6 gap-y-2">
+      <Cell label="Saturday" entry={day1} active={activeDay === 1} />
+      <Cell label="Sunday" entry={day2} active={activeDay === 2} />
     </div>
   );
 }
