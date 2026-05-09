@@ -76,16 +76,26 @@ function DivisionResults({
 }) {
   const awards = division.prizes?.awards ?? defaultAwards(division.format);
 
+  // Hide overall (36-hole) prizes until at least one player has finished a
+  // Sunday round. Otherwise, while only Day 1 is in, the "Overall" categories
+  // would just duplicate the Saturday winners — a championship hasn't been
+  // decided yet.
+  const sundayStarted = lines.some((l) => l.sun.gross != null);
+  const visibleAwards = awards.filter(
+    ({ category }) =>
+      sundayStarted || PRIZE_SCOPE[category].kind !== 'overall'
+  );
+
   return (
     <div className="rd-card overflow-hidden print:break-inside-avoid">
       <h2 className="text-base uppercase tracking-wide text-center py-2 px-2 text-rd-navy font-sans font-semibold border-b-2 border-rd-gold">
         {division.name} Division
       </h2>
-      {awards.length === 0 ? (
+      {visibleAwards.length === 0 ? (
         <p className="text-sm text-rd-ink/50 p-4">No prizes configured for this division.</p>
       ) : (
         <div className="space-y-3 p-3 print:space-y-1 print:p-2">
-          {awards.map(({ category, topN }) => {
+          {visibleAwards.map(({ category, topN }) => {
             const winners = podium(lines, category, topN, course);
             return (
               <div key={category} className="border border-rd-navy/30 rounded overflow-hidden">

@@ -74,11 +74,13 @@ export function dayNet(gross: number | null, ph: number): number | null {
 }
 
 export function overallGross(sat: number | null, sun: number | null): number | null {
-  return sat != null && sun != null ? sat + sun : null;
+  if (sat == null && sun == null) return null;
+  return (sat ?? 0) + (sun ?? 0);
 }
 
 export function overallNet(satNet: number | null, sunNet: number | null): number | null {
-  return satNet != null && sunNet != null ? satNet + sunNet : null;
+  if (satNet == null && sunNet == null) return null;
+  return (satNet ?? 0) + (sunNet ?? 0);
 }
 
 export function eclecticHoles(
@@ -273,9 +275,9 @@ export function buildPlayerLines(
     const satStableford = stablefordTotal(day1Holes, ph, course);
     const sunStableford = stablefordTotal(day2Holes, ph, course);
     const overallStableford =
-      satStableford != null && sunStableford != null
-        ? satStableford + sunStableford
-        : null;
+      satStableford == null && sunStableford == null
+        ? null
+        : (satStableford ?? 0) + (sunStableford ?? 0);
 
     return {
       player,
@@ -443,6 +445,21 @@ export function rankWithCountOut(
   // already bakes handicap into the per-hole points, so no further deduction.
   const isNet = scope.metric === 'net';
 
+  // Overall scope normally counts back on Sunday (the most recent round). If
+  // Sunday hasn't been played by anyone in this group yet (Day-1-only state),
+  // fall back to Saturday so ties still break.
+  const overallFallbackToSat =
+    scope.kind === 'overall' &&
+    lines.every((l) => l.sun.holes.every((h) => h == null));
+  const holesFor = (line: PlayerLine): (number | null)[] => {
+    if (overallFallbackToSat) {
+      return scope.metric === 'stableford'
+        ? line.sat.stablefordHoles
+        : line.sat.holes;
+    }
+    return holesForCountOut(line, scope);
+  };
+
   for (const g of groups) {
     const tied = g.indices.length > 1;
     for (const idx of g.indices) {
@@ -459,7 +476,7 @@ export function rankWithCountOut(
         return {
           idx,
           v: countOutSegmentValue(
-            holesForCountOut(line, scope),
+            holesFor(line),
             step.segment,
             line.ph,
             netFraction
