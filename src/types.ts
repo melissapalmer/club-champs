@@ -140,12 +140,31 @@ export type TeeTime = {
  * site shows a sub-tab per division that has `enabled: true` OR has
  * persisted matches.
  */
+/**
+ * What the bracket is seeded by.
+ *  - `hi`   — handicap index ascending (default; pre-tournament seeding)
+ *  - `satNet` / `satGross` — Saturday qualifier net / gross strokes ascending
+ *    (Coronation Cup convention is Saturday net)
+ *  - `sunNet` / `sunGross` — Sunday only
+ *  - `overallNet` / `overallGross` — combined two-round
+ */
+export type MatchPlaySeedBy =
+  | 'hi'
+  | 'satNet'
+  | 'satGross'
+  | 'sunNet'
+  | 'sunGross'
+  | 'overallNet'
+  | 'overallGross';
+
 export type MatchPlayConfig = {
   enabled: boolean;
   /** Display name for the bracket, e.g. "Bronze Match Play". Falls back to division name. */
   name?: string;
   /** ISO timestamp set when admin clicks Generate. Surfaces "last generated at…". */
   bracketGeneratedAt?: string;
+  /** What the bracket is seeded by. Defaults to `hi`. */
+  seedBy?: MatchPlaySeedBy;
 };
 
 /**

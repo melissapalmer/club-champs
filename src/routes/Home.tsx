@@ -18,7 +18,10 @@ export function Home({ data }: { data: AppData }) {
     course.teeTimes?.enabled && course.teeTimes.day1Start && course.teeTimes.day2Start
       ? `Sat ${course.teeTimes.day1Start} · Sun ${course.teeTimes.day2Start}`
       : null;
-  const matchPlayShown = course.divisions.some((d) => d.matchPlay?.enabled);
+  // Match Play card temporarily hidden from the home page until seeding is
+  // sorted out. Admin can still reach /match-play directly. Restore by
+  // replacing `false` with `course.divisions.some((d) => d.matchPlay?.enabled)`.
+  const matchPlayShown = false;
 
   const cards: Card[] = [
     teeTimesShown && {

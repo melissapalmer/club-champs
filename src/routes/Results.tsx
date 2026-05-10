@@ -88,28 +88,28 @@ function DivisionResults({
 
   return (
     <div className="rd-card overflow-hidden print:break-inside-avoid">
-      <h2 className="text-base uppercase tracking-wide text-center py-2 px-2 text-rd-navy font-sans font-semibold border-b-2 border-rd-gold">
+      <h2 className="text-base uppercase tracking-wide text-center py-2 px-2 text-rd-navy font-sans font-semibold border-b-2 border-rd-gold print:py-1 print:text-[11pt]">
         {division.name} Division
       </h2>
       {visibleAwards.length === 0 ? (
         <p className="text-sm text-rd-ink/50 p-4">No prizes configured for this division.</p>
       ) : (
-        <div className="space-y-3 p-3 print:space-y-1 print:p-2">
+        <div className="space-y-3 p-3 print:space-y-1 print:p-1">
           {visibleAwards.map(({ category, topN }) => {
             const winners = podium(lines, category, topN, course);
             return (
-              <div key={category} className="border border-rd-navy/30 rounded overflow-hidden">
-                <h3 className="text-xs uppercase tracking-wide text-center py-1 px-2 bg-rd-navy/10 text-rd-navy font-sans font-semibold border-b border-rd-navy/30">
+              <div key={category} className="border border-rd-navy/30 rounded overflow-hidden print:break-inside-avoid">
+                <h3 className="text-xs uppercase tracking-wide text-center py-1 px-2 bg-rd-navy/10 text-rd-navy font-sans font-semibold border-b border-rd-navy/30 print:py-0 print:px-1 print:text-[8pt]">
                   {PRIZE_LABELS[category]}
                 </h3>
                 {winners.length === 0 ? (
-                  <p className="text-sm text-rd-ink/50 px-2 py-1">—</p>
+                  <p className="text-sm text-rd-ink/50 px-2 py-1 print:py-0 print:text-[8pt]">—</p>
                 ) : (
                   <ol>
                     {winners.map((w, idx) => (
                       <li
                         key={w.line.player.saId}
-                        className={`flex items-baseline justify-between text-sm px-2 py-1 ${
+                        className={`flex items-baseline justify-between text-sm px-2 py-1 print:py-0 print:px-1 print:text-[8pt] print:leading-tight ${
                           idx > 0 ? 'border-t border-rd-navy/15' : ''
                         }`}
                       >
@@ -161,8 +161,8 @@ export function Results({ data }: { data: AppData }) {
 
   return (
     <section>
-      <h1 className="text-2xl text-rd-navy mb-1">Prize Winners</h1>
-      <p className="text-sm text-rd-ink/60 mb-4">
+      <h1 className="text-2xl text-rd-navy mb-1 print:text-[14pt] print:mb-1">Prize Winners</h1>
+      <p className="text-sm text-rd-ink/60 mb-4 print:hidden">
         By division and category.
       </p>
       <div className={`grid gap-4 print:gap-2 print-color-exact ${gridCols}`}>

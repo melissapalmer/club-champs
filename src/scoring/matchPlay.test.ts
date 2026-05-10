@@ -40,11 +40,11 @@ describe('pairingOrder', () => {
   it('produces [1,2] for N=2', () => {
     expect(pairingOrder(2)).toEqual([1, 2]);
   });
-  it('produces [1,4,2,3] for N=4', () => {
-    expect(pairingOrder(4)).toEqual([1, 4, 2, 3]);
+  it('produces balanced [1,4,3,2] for N=4 (seed 1 top, seed 2 bottom)', () => {
+    expect(pairingOrder(4)).toEqual([1, 4, 3, 2]);
   });
-  it('produces standard 8-bracket order [1,8,4,5,2,7,3,6]', () => {
-    expect(pairingOrder(8)).toEqual([1, 8, 4, 5, 2, 7, 3, 6]);
+  it('produces balanced 8-bracket order [1,8,5,4,3,6,7,2]', () => {
+    expect(pairingOrder(8)).toEqual([1, 8, 5, 4, 3, 6, 7, 2]);
   });
   it('produces 16-bracket where seed 1 meets 16, seed 8 meets 9, etc.', () => {
     const order = pairingOrder(16);
@@ -94,9 +94,9 @@ describe('generateBracket', () => {
     const r1 = matches.filter((m) => m.round === 1);
     expect(r1.length).toBe(4);
     expect(r1[0]).toMatchObject({ playerASaId: 's1', playerBSaId: 's8' });
-    expect(r1[1]).toMatchObject({ playerASaId: 's4', playerBSaId: 's5' });
-    expect(r1[2]).toMatchObject({ playerASaId: 's2', playerBSaId: 's7' });
-    expect(r1[3]).toMatchObject({ playerASaId: 's3', playerBSaId: 's6' });
+    expect(r1[1]).toMatchObject({ playerASaId: 's5', playerBSaId: 's4' });
+    expect(r1[2]).toMatchObject({ playerASaId: 's3', playerBSaId: 's6' });
+    expect(r1[3]).toMatchObject({ playerASaId: 's7', playerBSaId: 's2' });
     // No byes resolved.
     expect(r1.every((m) => m.winnerSaId == null)).toBe(true);
     // Rounds 2 and 3 exist and are empty.
@@ -116,18 +116,20 @@ describe('generateBracket', () => {
     const byes = r1.filter((m) => m.result === 'bye');
     expect(byes.length).toBe(3);
     expect(byes.map((m) => m.winnerSaId).sort()).toEqual(['s1', 's2', 's3']);
-    // The one real match: seed 4 vs seed 5 in slot 1.
+    // The one real match: seeds 4 and 5 in slot 1 (balanced layout puts the
+    // higher seed on top, so playerA = s5, playerB = s4).
     const realMatch = r1.find((m) => m.result == null);
-    expect(realMatch).toMatchObject({ playerASaId: 's4', playerBSaId: 's5' });
+    expect(realMatch).toMatchObject({ playerASaId: 's5', playerBSaId: 's4' });
     // Round 2 has byes already propagated.
     const r2 = matches.filter((m) => m.round === 2);
     expect(r2.length).toBe(2);
     // Round 2 slot 0 = winners of (1-0, 1-1). 1-0 is bye for s1, 1-1 still open.
     expect(r2[0].playerASaId).toBe('s1');
     expect(r2[0].playerBSaId).toBeUndefined();
-    // Round 2 slot 1 = winners of (1-2, 1-3). Both byes — so playerA and playerB both filled.
-    expect(r2[1].playerASaId).toBe('s2');
-    expect(r2[1].playerBSaId).toBe('s3');
+    // Round 2 slot 1 = winners of (1-2, 1-3). Both byes — slot 2 is seed 3,
+    // slot 3 is seed 2 (balanced order), so playerA = s3, playerB = s2.
+    expect(r2[1].playerASaId).toBe('s3');
+    expect(r2[1].playerBSaId).toBe('s2');
   });
 
   it('handles 2-vs-3 opt-ins yielding a 4-bracket with seed 1 getting a bye', () => {
@@ -138,9 +140,9 @@ describe('generateBracket', () => {
     // Seed 1 paired against seed 4 (missing) → bye.
     const bye = r1.find((m) => m.result === 'bye');
     expect(bye?.winnerSaId).toBe('s1');
-    // Seed 2 vs seed 3.
+    // Seed 2 vs seed 3 — balanced layout puts the higher seed (3) on top.
     const real = r1.find((m) => m.result == null);
-    expect(real).toMatchObject({ playerASaId: 's2', playerBSaId: 's3' });
+    expect(real).toMatchObject({ playerASaId: 's3', playerBSaId: 's2' });
   });
 });
 
@@ -162,12 +164,14 @@ describe('propagateAll', () => {
   it('routes round-1 winners into round-2 playerA / playerB by even/odd slot', () => {
     const after = propagateAll(seedDataPropagateRound1());
     const r2 = after.filter((m) => m.round === 2);
-    // Round 2 slot 0 = winners of round-1 slots 0 (→A) and 1 (→B).
+    // Round 2 slot 0 = winners of round-1 slots 0 (→A) and 1 (→B). With the
+    // balanced ordering, slot 1 has playerA=s5 (top), playerB=s4, so the
+    // round-1-A-wins rule makes s5 the slot-1 winner.
     expect(r2[0].playerASaId).toBe('s1');
-    expect(r2[0].playerBSaId).toBe('s4');
-    // Round 2 slot 1 = winners of round-1 slots 2 (→A) and 3 (→B).
-    expect(r2[1].playerASaId).toBe('s2');
-    expect(r2[1].playerBSaId).toBe('s3');
+    expect(r2[0].playerBSaId).toBe('s5');
+    // Round 2 slot 1 = winners of round-1 slots 2 (→A=s3) and 3 (→A=s7).
+    expect(r2[1].playerASaId).toBe('s3');
+    expect(r2[1].playerBSaId).toBe('s7');
   });
 
   it('is idempotent — running propagateAll twice produces the same result', () => {

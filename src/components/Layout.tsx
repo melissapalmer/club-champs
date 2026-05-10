@@ -35,11 +35,12 @@ const NAV: NavItem[] = [
     to: '/match-play',
     label: 'Match Play',
     end: false,
-    // Strict: hide unless at least one division has Match Play turned on.
-    // (Stale persisted matches alone don't surface the tab — admin can
-    // re-enable a division if they want the bracket back in the nav.)
-    visibleWhen: ({ course }) =>
-      !!course?.divisions?.some((d) => d.matchPlay?.enabled),
+    // Temporarily hidden from public nav while seeding is being worked on —
+    // admin can still reach /match-play directly via the URL or via Config.
+    // Re-enable by switching this back to:
+    //   visibleWhen: ({ course }) =>
+    //     !!course?.divisions?.some((d) => d.matchPlay?.enabled),
+    visibleWhen: () => false,
   },
   { to: '/manage-players', label: 'Manage Players', end: false, adminOnly: true },
   { to: '/config', label: 'Config', end: false, adminOnly: true },
@@ -81,20 +82,20 @@ export function Layout({
   return (
     <div className="min-h-screen flex flex-col">
       <header className="bg-rd-navy text-white print-color-exact">
-        <div className="max-w-7xl mx-auto px-4 py-5 flex items-center gap-4">
+        <div className="max-w-7xl mx-auto px-4 py-5 flex items-center gap-4 print:py-2">
           <img
             src={resolveAssetUrl(course?.branding?.logoUrl) ?? resolveAssetUrl('royal-durban-logo.webp')}
             alt={course?.club ?? 'Club logo'}
-            className="h-14 w-auto shrink-0"
+            className="h-14 w-auto shrink-0 print:h-8"
             onError={(e) => {
               (e.currentTarget as HTMLImageElement).style.display = 'none';
             }}
           />
           <div className="min-w-0">
-            <div className="font-serif text-xl sm:text-2xl leading-tight text-rd-gold-light">
+            <div className="font-serif text-xl sm:text-2xl leading-tight text-rd-gold-light print:text-base">
               {course?.club ?? 'Royal Durban Golf Club'}
             </div>
-            <div className="text-sm sm:text-base text-white/85 truncate">
+            <div className="text-sm sm:text-base text-white/85 truncate print:text-xs">
               {course?.event ?? '2026 Ladies Club Champs'}
             </div>
           </div>
@@ -125,7 +126,7 @@ export function Layout({
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
         <Outlet />
       </main>
-      <footer className="border-t border-rd-cream text-xs text-rd-ink/60 py-4 text-center">
+      <footer className="border-t border-rd-cream text-xs text-rd-ink/60 py-4 text-center print:hidden">
         <div>
           {course?.club ?? 'Royal Durban Golf Club'} · {course?.event ?? '2026 Ladies Club Champs'}
         </div>

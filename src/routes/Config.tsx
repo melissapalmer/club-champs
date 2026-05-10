@@ -351,6 +351,32 @@ function MatchPlayEditor({
               onChange={(e) => patch({ name: e.target.value })}
             />
           </label>
+          <label className="block">
+            <span className="text-xs text-rd-ink/60 block">
+              Seed by{' '}
+              <span className="text-rd-ink/40">
+                · changes apply on the next Generate
+              </span>
+            </span>
+            <select
+              className="w-full border rounded px-2 py-1 mt-0.5 bg-white"
+              value={matchPlay?.seedBy ?? 'hi'}
+              onChange={(e) =>
+                patch({
+                  seedBy: e.target
+                    .value as import('../types').MatchPlaySeedBy,
+                })
+              }
+            >
+              <option value="hi">Handicap Index (lowest first)</option>
+              <option value="satNet">Saturday Net</option>
+              <option value="satGross">Saturday Gross</option>
+              <option value="sunNet">Sunday Net</option>
+              <option value="sunGross">Sunday Gross</option>
+              <option value="overallNet">Overall Net</option>
+              <option value="overallGross">Overall Gross</option>
+            </select>
+          </label>
         </div>
       </div>
 
@@ -1284,7 +1310,56 @@ export function Config({ data }: { data: AppData }) {
     if (!ok) return;
     setMatchPlayStatus({ kind: 'busy', msg: `Generating ${divisionCode}…` });
     try {
-      const bracket = generateBracket(opted, divisionCode);
+      // Resolve the chosen seed metric. `hi` (default) lets the engine sort by
+      // handicap; anything else needs us to compute per-line scores and pre-sort
+      // here, then pass an explicit seedOrder to the engine. Players with no
+      // value for the chosen metric (e.g. didn't post a Saturday score) seed
+      // last, with HI as the deterministic tiebreaker.
+      const seedBy = divisionDraft.matchPlay?.seedBy ?? 'hi';
+      let seedOrder: import('../types').Player[] | undefined;
+      if (seedBy !== 'hi') {
+        const lines = buildPlayerLines(opted, data.scores, data.course);
+        const lineBySaId = new Map(lines.map((l) => [l.player.saId, l]));
+        const seedValue = (saId: string): number | null => {
+          const l = lineBySaId.get(saId);
+          if (!l) return null;
+          switch (seedBy) {
+            case 'satNet': return l.sat.net;
+            case 'satGross': return l.sat.gross;
+            case 'sunNet': return l.sun.net;
+            case 'sunGross': return l.sun.gross;
+            // Overall metrics for SEEDING require both days. The leaderboard
+            // uses a running-total semantic for `overall.*` so positions move
+            // after Day 1; here we want strict "both days complete" — otherwise
+            // a player with only Sat entered would seed ahead of one with the
+            // full sum, because their sat-only number is smaller.
+            case 'overallNet':
+              return l.sat.net != null && l.sun.net != null
+                ? l.overall.net
+                : null;
+            case 'overallGross':
+              return l.sat.gross != null && l.sun.gross != null
+                ? l.overall.gross
+                : null;
+            default: return null;
+          }
+        };
+        seedOrder = [...opted].sort((a, b) => {
+          const av = seedValue(a.saId);
+          const bv = seedValue(b.saId);
+          // Lower-is-better for golf scoring; nulls go to the end.
+          if (av == null && bv == null) {
+            if (a.hi !== b.hi) return a.hi - b.hi;
+            return a.lastName.localeCompare(b.lastName);
+          }
+          if (av == null) return 1;
+          if (bv == null) return -1;
+          if (av !== bv) return av - bv;
+          if (a.hi !== b.hi) return a.hi - b.hi;
+          return a.lastName.localeCompare(b.lastName);
+        });
+      }
+      const bracket = generateBracket(opted, divisionCode, seedOrder);
       // Merge: drop any existing matches for this division, append the new ones.
       const others = data.matches.filter((m) => m.divisionCode !== divisionCode);
       await saveMatches(c, [...others, ...bracket]);

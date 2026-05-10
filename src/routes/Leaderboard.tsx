@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useIsAdmin } from '../admin';
 import { DivisionTabs } from '../components/DivisionTabs';
 import { ScoreEditModal } from '../components/ScoreEditModal';
@@ -15,8 +15,34 @@ import {
   visibleDivisions,
   type PlayerLine,
   type RankResult,
+  type RankScope,
 } from '../scoring/engine';
 import type { Course, DivisionFormat, Hole, Player } from '../types';
+
+type ScoreSort =
+  | 'overallNet'
+  | 'overallGross'
+  | 'satNet'
+  | 'satGross'
+  | 'sunNet'
+  | 'sunGross'
+  | 'overallStableford'
+  | 'satStableford'
+  | 'sunStableford';
+
+function scoreSortToScope(sort: ScoreSort): RankScope {
+  switch (sort) {
+    case 'overallNet': return { kind: 'overall', metric: 'net' };
+    case 'overallGross': return { kind: 'overall', metric: 'gross' };
+    case 'satNet': return { kind: 'day', day: 1, metric: 'net' };
+    case 'satGross': return { kind: 'day', day: 1, metric: 'gross' };
+    case 'sunNet': return { kind: 'day', day: 2, metric: 'net' };
+    case 'sunGross': return { kind: 'day', day: 2, metric: 'gross' };
+    case 'overallStableford': return { kind: 'overall', metric: 'stableford' };
+    case 'satStableford': return { kind: 'day', day: 1, metric: 'stableford' };
+    case 'sunStableford': return { kind: 'day', day: 2, metric: 'stableford' };
+  }
+}
 
 /** Stable, locale-aware compare on (lastName, firstName). */
 function surnameCompare(a: Player, b: Player): number {
@@ -417,11 +443,22 @@ export function Leaderboard({ data }: { data: AppData }) {
   const activeFormat: DivisionFormat = activeDivision?.format ?? 'medal';
   const isStableford = activeFormat === 'stableford';
 
-  const overallRanks = rankWithCountOut(
-    divLines,
-    { kind: 'overall', metric: isStableford ? 'stableford' : 'net' },
-    course
+  // Sort selector: lets the user pick which metric drives the leaderboard.
+  // Defaults are the conventional "championship" sort (overall net for medal,
+  // overall pts for stableford). When the active division switches between
+  // medal and stableford, reset to the format-appropriate default since the
+  // other metrics don't apply.
+  const [sortKey, setSortKey] = useState<ScoreSort>(
+    isStableford ? 'overallStableford' : 'overallNet'
   );
+  useEffect(() => {
+    const isStablefordSort = sortKey.endsWith('Stableford');
+    if (isStablefordSort !== isStableford) {
+      setSortKey(isStableford ? 'overallStableford' : 'overallNet');
+    }
+  }, [isStableford, sortKey]);
+  const sortScope: RankScope = scoreSortToScope(sortKey);
+  const overallRanks = rankWithCountOut(divLines, sortScope, course);
 
   const sorted = divLines
     .map((line, i) => ({ line, rank: overallRanks[i] }))
@@ -448,16 +485,52 @@ export function Leaderboard({ data }: { data: AppData }) {
 
   return (
     <section>
-      <h1 className="text-2xl text-rd-navy mb-1">Scores</h1>
-      <p className="text-sm text-rd-ink/60 mb-4">
+      <h1 className="text-2xl text-rd-navy mb-1">
+        Scores
+        {activeDivision && (
+          <span className="hidden print:inline text-rd-gold">
+            {' — '}
+            {activeDivision.name} Division
+          </span>
+        )}
+      </h1>
+      <p className="text-sm text-rd-ink/60 mb-4 print:hidden">
         {isStableford
           ? 'Individual stableford · ranked by overall points · click a row for hole-by-hole.'
           : 'Medal scoring across two days · ranked by overall net · click a row for hole-by-hole.'}
       </p>
-      <DivisionTabs divisions={divs} active={activeDiv} onChange={setActiveDiv} />
-
-      <div className="flex items-center justify-between mb-3 gap-3 print-hidden">
-        <div>{!isStableford && <ScoreLegend />}</div>
+      <div className="print:hidden">
+        <DivisionTabs divisions={divs} active={activeDiv} onChange={setActiveDiv} />
+      </div>
+      <div className="flex items-center justify-between mb-3 gap-3 print-hidden flex-wrap">
+        <div className="flex items-center gap-3">
+          {!isStableford && <ScoreLegend />}
+          <label className="flex items-center gap-1.5 text-xs text-rd-ink/70">
+            <span>Sort by</span>
+            <select
+              value={sortKey}
+              onChange={(e) => setSortKey(e.target.value as ScoreSort)}
+              className="border rounded px-2 py-1 bg-white text-rd-ink"
+            >
+              {isStableford ? (
+                <>
+                  <option value="overallStableford">Total Pts</option>
+                  <option value="satStableford">Saturday Pts</option>
+                  <option value="sunStableford">Sunday Pts</option>
+                </>
+              ) : (
+                <>
+                  <option value="overallNet">Overall Net</option>
+                  <option value="overallGross">Overall Gross</option>
+                  <option value="satNet">Saturday Net</option>
+                  <option value="satGross">Saturday Gross</option>
+                  <option value="sunNet">Sunday Net</option>
+                  <option value="sunGross">Sunday Gross</option>
+                </>
+              )}
+            </select>
+          </label>
+        </div>
         <button
           type="button"
           onClick={() => {
@@ -581,7 +654,11 @@ export function Leaderboard({ data }: { data: AppData }) {
       </div>
 
       {!isStableford && (
-        <EclecticSection divLines={divLines} course={course} />
+        <EclecticSection
+          divLines={divLines}
+          course={course}
+          divisionName={activeDivision?.name}
+        />
       )}
 
       {editing && (
@@ -603,9 +680,11 @@ export function Leaderboard({ data }: { data: AppData }) {
 function EclecticSection({
   divLines,
   course,
+  divisionName,
 }: {
   divLines: PlayerLine[];
   course: Course;
+  divisionName?: string;
 }) {
   const ranks = rankWithTies(divLines.map((l) => l.eclectic.net));
   const sorted = divLines
@@ -618,9 +697,15 @@ function EclecticSection({
     });
 
   return (
-    <section className="mt-6">
+    <section className="mt-6 print:break-before-page print:mt-0">
+      {divisionName && (
+        <h1 className="hidden print:block text-2xl text-rd-navy mb-1">
+          Scores
+          <span className="text-rd-gold"> — {divisionName} Division</span>
+        </h1>
+      )}
       <h2 className="text-lg text-rd-navy font-serif mb-1">Eclectic</h2>
-      <p className="text-sm text-rd-ink/60 mb-3">
+      <p className="text-sm text-rd-ink/60 mb-3 print:hidden">
         Best of Day 1 / Day 2 per hole · net = gross less {course.eclecticHandicapPct}% of PH.
       </p>
       <div className="rd-card overflow-x-auto">
@@ -665,3 +750,4 @@ function EclecticSection({
     </section>
   );
 }
+

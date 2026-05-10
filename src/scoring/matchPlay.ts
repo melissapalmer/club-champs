@@ -25,9 +25,20 @@ export function bracketSize(optInCount: number): number {
 }
 
 /**
- * Standard "Swiss" seeding sequence for an N-bracket. Returns seed numbers
- * (1-indexed) in slot order. For N=8: [1,8,4,5,2,7,3,6]. The construction
- * is recursive: pair each seed s in the half-size order with N+1-s.
+ * Balanced ("Wimbledon-style") seeding sequence for an N-bracket. Returns
+ * seed numbers (1-indexed) in slot order. For N=8: [1,8,5,4,3,6,7,2] — seed 1
+ * sits at the very top and seed 2 at the very bottom, matching the layout
+ * historically used on Royal Durban's printed bracket sheets.
+ *
+ * The matchups are still 1v8, 4v5, 2v7, 3v6 (every pair sums to N+1) and the
+ * bracket structure (semi pairings, final, etc.) is functionally identical to
+ * the standard Swiss order — only the visual placement of the bottom-half
+ * pairs and the top-vs-bottom orientation within each pair differs.
+ *
+ * Construction: recurse on N/2; for each seed s in the half-order, push the
+ * pair (s, N+1-s), but flip the pair's order on every other position so the
+ * higher-seeded player alternates between top and bottom. That alternation
+ * is what pulls seed 2 down to the very last slot.
  *
  * Defensive: only positive integer powers of 2 are valid bracket sizes.
  * Any other input returns `[]` — callers should treat that as "can't
@@ -40,10 +51,15 @@ export function pairingOrder(N: number): number[] {
   if (N === 1) return [1];
   const half = pairingOrder(N / 2);
   const out: number[] = [];
-  for (const s of half) {
-    out.push(s);
-    out.push(N + 1 - s);
-  }
+  half.forEach((s, idx) => {
+    if (idx % 2 === 0) {
+      out.push(s);
+      out.push(N + 1 - s);
+    } else {
+      out.push(N + 1 - s);
+      out.push(s);
+    }
+  });
   return out;
 }
 
@@ -68,8 +84,17 @@ export function seedPlayers(players: Player[]): Player[] {
  * rounds 2..final are empty placeholders that fill in as winners are
  * entered.
  */
-export function generateBracket(opted: Player[], divisionCode: DivisionCode): Match[] {
-  const seeded = seedPlayers(opted);
+export function generateBracket(
+  opted: Player[],
+  divisionCode: DivisionCode,
+  /**
+   * Pre-sorted seed order. If omitted, defaults to `seedPlayers(opted)`
+   * (lowest HI first). Pass an explicit list when seeding by a different
+   * metric — e.g. Saturday net for a Coronation Cup-style qualifier.
+   */
+  seedOrder?: Player[]
+): Match[] {
+  const seeded = seedOrder ?? seedPlayers(opted);
   const K = seeded.length;
   const N = bracketSize(K);
   if (N < 2) return [];
